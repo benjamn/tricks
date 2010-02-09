@@ -61,6 +61,8 @@ var Location = Base.derive({
     lift: function(predicate) {
         var node = this.node,
             offset = this.offset;
+        if (!node)
+            return null;
         while (node.parentNode &&
                node != document.body &&
                !predicate(node))
@@ -131,16 +133,16 @@ var Location = Base.derive({
 Location.fromString = function(s) {
     var splat = s.split(":"),
         args = { offset: +splat.pop() };
-    switch (splat.length) {
-    case 0:
+
+    if (splat.length == 0)
         args.node = document.body;
-        break;
-    case 1:
+
+    if (splat.length == 1)
         args.node = document.getElementById(splat.pop());
-        break;
-    default:
+
+    if (!args.node)
         return null;
-    }
+
     return new Location(args).normalize();
 };
 
