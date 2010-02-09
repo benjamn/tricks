@@ -119,7 +119,12 @@ IESelection.rangeToLoc = function(range) {
     range.pasteHTML("<span id='" + id + "'></span>");
     var span = document.getElementById(id),
         parent = range.parentElement(),
-        loc = new Location({ node: span, offset: 0 }).lift(parent);
+        loc = new Location({
+            node: span,
+            offset: 0
+        }).lift(function(node) {
+            return node === parent;
+        });
     parent.removeChild(span);
     return loc;
 };

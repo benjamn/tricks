@@ -1,5 +1,4 @@
 var Base = require("../lang/class").Base,
-    isFun = require("../lang/fun").isFunction,
     dom = require("./util"),
     succ = dom.successor,
     pred = dom.predecessor,
@@ -7,28 +6,51 @@ var Base = require("../lang/class").Base,
     first = dom.firstLeaf,
     isTxt = dom.isTextNode,
     infertile = dom.infertile;
-    
-function len(leaf) {
-    if (isTxt(leaf))
-        return leaf.nodeValue.length;
-    return infertile(leaf) ? 1 : 0;
+
+function str_atom_count(str, right_strip) {
+    if (right_strip)
+        str = str.replace(/\s*$/m, '');
+    return str.replace(/\s+/gm, " ").length;
+}
+function leaf_atom_count(leaf, right_strip) {
+    return (isTxt(leaf)
+            ? str_atom_count(leaf.nodeValue, right_strip)
+            : (infertile(leaf) ? 1 : 0));
 }
 
-function sum(arr, fn) {
-    var result = 0, len = arr.length;
-    for (var i = 0; i < len; ++i)
-        result += fn(arr[i]);
+function starts_with_space(node) {
+    var leaf = first(node);
+    while (leaf && leaf_atom_count(leaf) < 1)
+        leaf = succ(leaf);
+    return (leaf &&
+            isTxt(leaf) &&
+            /^\s/.test(leaf.nodeValue));
+}
+
+function sum(arr, right_strip) {
+    var result = 0,
+        i = arr.length,
+        leaf, count;
+    while (i --> 0) {
+        leaf = arr[i];
+        count = leaf_atom_count(leaf, right_strip);
+        if (count < 1)
+            continue;
+        result += count;
+        right_strip = starts_with_space(leaf);
+    }
     return result;
 }
 
-function testify(test) {
-    if (isFun(test))
-        return test;
-    return function(x) {
-        return test === x;
-    };
+function atom_offset_to_str_pos(text, offset) {
+    var pos = offset;
+    // The atom count is always an underestimate of the real position, so
+    // this loop will indeed terminate.
+    while (str_atom_count(text.slice(0, pos)) < offset)
+        pos++;
+    return pos;
 }
-
+    
 var Location = Base.derive({
     
     /* Initialization example:
@@ -36,14 +58,14 @@ var Location = Base.derive({
      * var loc2 = new Location(loc1);
      */
 
-    lift: function(test) {
-        test = testify(test);
-        var node = this.node, offset = this.offset;
+    lift: function(predicate) {
+        var node = this.node,
+            offset = this.offset;
         while (node.parentNode &&
                node != document.body &&
-               !test(node))
+               !predicate(node))
         {
-            offset += sum(fore(node), len);
+            offset += sum(fore(node), starts_with_space(node));
             node = node.parentNode;
         }
         return new Location({ node: node, offset: offset });
@@ -51,12 +73,13 @@ var Location = Base.derive({
 
     ground: function() {
         var offset = this.offset,
-            leaf = first(this.node);
+            leaf = first(this.node),
+            nextLeaf = succ(leaf);
         while (leaf) {
-            var loss = len(leaf);
+            var loss = leaf_atom_count(leaf, starts_with_space(nextLeaf));
             if (loss > offset) break;
             else offset -= loss;
-            leaf = succ(leaf);
+            nextLeaf = succ(leaf = nextLeaf);
         }
         return new Location({ node: leaf, offset: offset });
     },
@@ -67,14 +90,16 @@ var Location = Base.derive({
             offset = loc.offset;
         if (offset == 0)
             return [pred(node), node];
-        if (offset >= len(node))
+        // Strict > should never happen if this.ground() did its job.
+        if (offset >= leaf_atom_count(node, true))
             return [node, succ(node)];
         if (isTxt(node)) {
             var text = node.nodeValue,
-                preText = text.slice(0, offset),
+                pos = atom_offset_to_str_pos(text, offset),
+                preText = text.slice(0, pos),
                 preNode = document.createTextNode(preText);
             node.parentNode.insertBefore(preNode, node);
-            node.nodeValue = text.slice(offset);
+            node.nodeValue = text.slice(pos);
             return [preNode, node];
         }
         return [node];
