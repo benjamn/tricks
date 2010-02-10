@@ -1,5 +1,5 @@
 // Ensure Object.prototype.hasOwnProperty.
-require("../lang/obj");
+require("../lang/hasOwnProperty");
 
 var decompile = Function.prototype.toString;
 

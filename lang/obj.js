@@ -1,24 +1,12 @@
+require("./hasOwnProperty");
+
 var natives = ['toString',
                'valueOf',
                'constructor',
                'propertyIsEnumerable',
                'isPrototypeOf',
                'hasOwnProperty',
-               'toLocaleString'],
-    op = Object.prototype,
-    hasOwnProperty = op.hasOwnProperty || function(name) {
-        var hasOwn, proto = this.__proto__;
-        if (proto) {
-            this.__proto__ = null;
-            hasOwn = name in this;
-            this.__proto__ = proto;
-        } else hasOwn = name in this;
-        return hasOwn;
-    };
-
-// No pollution because browsers requiring this fix ignore user-defined
-// Object.prototype.hasOwnProperty values.
-op.hasOwnProperty = hasOwnProperty;
+               'toLocaleString'];
 
 function keys(obj, includeNatives) {
     var seen = {}, ks = [];
