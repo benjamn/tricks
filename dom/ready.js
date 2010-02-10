@@ -1,28 +1,11 @@
 // Adapted from http://code.jquery.com/jquery-1.4.1.js
 
-var isReady,
-    readyBound,
-    DOMContentLoaded;
+var events = require("./events"),
+    addEvent = events.addEvent,
+    removeEvent = events.removeEvent,
+    isReady,
+    readyBound;
 
-// Cleanup functions for the document ready method
-if (document.addEventListener) {
-	DOMContentLoaded = function() {
-		document.removeEventListener("DOMContentLoaded",
-                                     DOMContentLoaded,
-                                     false);
-        ready();
-	};  
-} else if (document.attachEvent) {
-	DOMContentLoaded = function() {
-		// Make sure body exists, at least, in case IE gets a little
-        // overzealous (ticket #5443).
-		if (document.readyState === "complete") {
-			document.detachEvent("onreadystatechange", DOMContentLoaded);
-            ready();
-		}
-	};
-}
-    
 // The DOM ready check for Internet Explorer
 function doScrollCheck() {
 	if (isReady)
@@ -32,7 +15,7 @@ function doScrollCheck() {
 		// http://javascript.nwbox.com/IEContentLoaded/
 		document.documentElement.doScroll("left");
 	} catch (x) {
-		setTimeout(doScrollCheck, 1);
+		setTimeout(doScrollCheck, 10);
 		return;
 	}
 	// and execute any waiting functions
@@ -47,30 +30,29 @@ function bindReady() {
     if (document.readyState === "complete")
         return ready();
 
+    var DOMContentLoaded;
+    
     if (document.addEventListener) {
-        document.addEventListener("DOMContentLoaded",
-                                  DOMContentLoaded,
-                                  false);
-        // A fallback to window.onload that will always work.
-        window.addEventListener("load", ready, false);
-    } else if (document.attachEvent) {
-        // ensure firing before onload,
-        // maybe late but safe also for iframes
-        document.attachEvent("onreadystatechange",
-                             DOMContentLoaded);
-        // A fallback to window.onload that will always work.
-        window.attachEvent("onload", ready);
-
-        // If IE and not a frame
-        // continually check to see if the document is ready
-        var toplevel = false;
-
-        try { toplevel = window.frameElement == null }
-        catch (x) {}
-
+        DOMContentLoaded = addEvent(document, "DOMContentLoaded", function() {
+		    removeEvent(document, "DOMContentLoaded", DOMContentLoaded);
+            ready();
+	    });
+    } else {
+        DOMContentLoaded = addEvent(document, "readystatechange", function() {
+		    // Make sure body exists, at least, in case IE gets a little
+            // overzealous (ticket #5443).
+		    if (document.readyState === "complete")
+                removeEvent(document, "readystatechange", DOMContentLoaded);
+            ready();
+		});
+        // If IE and not a frame continually check to see if the document
+        // is ready:
+        try { var toplevel = !!window.frameElement } catch (x) {}
         if (document.documentElement.doScroll && toplevel)
             doScrollCheck();
-    }
+	}
+    // Fail-safe fallback:
+    addEvent(window, "load", ready);
 }
 
 var readyList = [];
@@ -82,7 +64,7 @@ function ready() {
     // Make sure body exists, at least, in case IE gets a little
     // overzealous (ticket #5443).
 	if (!document.body)
-		return setTimeout(ready, 13);
+		return setTimeout(ready, 10);
 
 	isReady = true;
 
@@ -93,8 +75,7 @@ function ready() {
 
 exports.whenReady = function(fn) {
     bindReady();
-    if (isReady)
-        fn.call(document);
-    else
-        readyList[readyList.length] = fn;
+    fn.call = fn.call;
+    isReady ? fn.call(document)
+            : readyList[readyList.length] = fn;
 };
