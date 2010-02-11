@@ -1496,7 +1496,12 @@ var UI = (function() {
   }
 
 })(this.exports = (function() {
-    function empty() {}
-    empty.prototype = this;
+    var proto = empty.prototype = this;
+    function empty() {
+        // Avoid "TypeError: type error" in webkit:
+        this.setTimeout = function(fn, delay) {
+            return proto.setTimeout(fn, delay);
+        };
+    }
     return new empty;
 })());
