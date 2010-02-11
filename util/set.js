@@ -1,104 +1,169 @@
 // Ensure Object.prototype.hasOwnProperty.
 require("../lang/hasOwnProperty");
 
-var decompile = Function.prototype.toString;
+function isTaggable(obj, tag) {
+    var orig = obj[tag],
+        needToReplace = obj.hasOwnProperty(tag),
+        temp = {};
+    try {
+        obj[tag] = temp;
+        return obj[tag] === temp;
+    } catch (x) {
+        return false;
+    } finally {
+        if (needToReplace)
+            obj[tag] = orig;
+        else delete obj[tag];
+    }
+}
 
-exports.Set = function() {
+function TaggingSet() {
 
-    var obj_tag = "<aegis/util/set " + Math.random() + ">";
-        elems_by_type = {};
+    var tag = "<aegis/util/set " + Math.random() + ">",
+        tagged = {};
+
+    this.add = function(obj) {
+        if (!isTaggable(obj, tag) ||
+            this.contains(obj))
+            return false;
+        while (tagged[obj[tag]] !== obj)
+            if (!((obj[tag] = Math.random().toString()) in tagged))
+                tagged[obj[tag]] = obj;
+        return true;
+    };
+
+    this.contains = function(obj) {
+        try { if (!(tag in obj)) throw obj }
+        catch (x) { return false }
+        return tagged[obj[tag]] === obj;
+    };
+
+    this.remove = function(obj) {
+        if (!this.contains(obj))
+            return false;
+        delete tagged[obj[tag]];
+        delete obj[tag];
+        return true;
+    };
+
+    this.each = function(callback) {
+        for (var ref in tagged)
+            if (tagged[ref][tag] === ref)
+                callback(tagged[ref]);
+    };
+
+}
+
+function OneToStringSet() {
+
+    var elems = {};
 
     this.add = function(elem) {
         if (this.contains(elem))
             return false;
-        var type = typeof elem,
-            same_type = elems_by_type[type];
-        switch (type) {
-        case "object":
-            while (same_type[elem[obj_tag]] !== elem)
-                if (!((elem[obj_tag] = Math.random()) in same_type))
-                    same_type[elem[obj_tag]] = elem;
-            break;
-        case "function":
-            var str = decompile.call(elem),
-                fns = (same_type[str] || (same_type[str] = []));
-            fns[fns.length] = elem;
-            break;
-        default:
-            same_type[elem] = elem;
-        }
+        elems[elem] = elem;
         return true;
     };
 
     this.contains = function(elem) {
-        var type = typeof elem,
-            same_type = elems_by_type[type];
-        if (!same_type)
-            return false;
-        switch (type) {
-        case "object":
-            return same_type[elem[obj_tag]] === elem;
-        case "function":
-            var fns = same_type[decompile.call(elem)];
-            if (!fns)
-                return false;
-            for (var i = fns.length - 1; i >= 0; --i)
-                if (fns[i] === elem)
-                    return true;
-            return false;
-        default:
-            return same_type.hasOwnProperty(elem);
-        }
+        return elems.hasOwnProperty(elem);
     };
 
     this.remove = function(elem) {
         if (!this.contains(elem))
             return false;
-        var type = typeof elem,
-            same_type = elems_by_type[type];
-        switch (type) {
-        case "object":
-            var key = elem[obj_tag];
-            if (same_type[key] === elem) {
-                delete same_type[key];
-                delete elem[obj_tag];
-            }
-            break;
-        case "function":
-            var str = decompile.call(elem),
-                fn, fns = same_type[str],
-                new_fns = same_type[str] = [];
-            while (fns.length)
-                if ((fn = fns.pop()) !== elem)
-                    new_fns[new_fns.length] = fn;
-            break;
-        default:
-            delete same_type[elem];
-        }
+        delete elems[elem];
         return true;
     };
 
     this.each = function(callback) {
-        for (var type in elems_by_type) {
-            var same_type = elems_by_type[type];
-            switch (type) {
-            case "object":
-                for (var key in same_type)
-                    callback(same_type[key]);
-                break;
-            case "function":
-                for (var str in same_type)
-                    for (var fns = same_type[str],
-                             i = fns.length - 1;
-                         i >= 0; --i)
-                        callback(fns[i]);
-                break;
-            default:
-                for (var str in same_type)
-                    callback(same_type[str]);
-                break;
-            }
-        }
+        for (var str in elems)
+            callback(elems[str]);
+    };
+
+}
+
+function ManyToStringSet() {
+
+    var lists = {};
+
+    this.add = function(elem) {
+        if (this.contains(elem))
+            return false;
+        var str = elem + "",
+            list = (lists[str] || (lists[str] = []));
+        list[list.length] = elem;
+        return true;
+    };
+
+    this.contains = function(elem) {
+        var str = elem + "",
+            list = lists[str];
+        if (!list)
+            return false;
+        for (var i = list.length - 1; i >= 0; --i)
+            if (list[i] === elem)
+                return true;
+        return false;
+    };
+
+    this.remove = function(elem) {
+        if (!this.contains(elem))
+            return false;
+        var str = elem + "",
+            other, list = lists[str],
+            new_list = lists[str] = [];
+        while (list.length)
+            if ((other = list.pop()) !== elem)
+                new_list[new_list.length] = other;
+        return true;
+    };
+
+    this.each = function(callback) {
+        for (var str in lists)
+            for (var list = lists[str],
+                     i = list.length - 1;
+                 i >= 0; --i)
+                callback(list[i]);
+    };
+
+}
+
+exports.Set = function() {
+
+    var subsets = {
+        "object": TaggingSet,
+        "function": ManyToStringSet,
+        "string": OneToStringSet,
+        "number": OneToStringSet,
+        "undefined": OneToStringSet,
+        "boolean": OneToStringSet
+    };
+
+    function getSubset(elem) {
+        var type = typeof elem,
+            subset = subsets[type];
+        if (typeof subset == "function")
+            subsets[type] = new subset;
+        return subsets[type];
+    }
+
+    this.add = function(elem) {
+        return getSubset(elem).add(elem);
+    };
+
+    this.contains = function(elem) {
+        return getSubset(elem).contains(elem);
+    };
+
+    this.remove = function(elem) {
+        return getSubset(elem).remove(elem);
+    };
+
+    this.each = function(callback) {
+        for (var type in subsets)
+            if (typeof subsets[type] == "object")
+                subsets[type].each(callback);
     };
 
 };
