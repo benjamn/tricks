@@ -1478,7 +1478,7 @@ var UI = (function() {
   var defaultLoader = new TestLoader();
   Evidence.defaultLoader = defaultLoader;
 
-  global.Evidence = Evidence;
+  exports.Evidence = global.Evidence = Evidence;
 
   if (global.location) {
     global.onload = function() {
@@ -1495,13 +1495,4 @@ var UI = (function() {
     runtime.addShutdownHook(thread);
   }
 
-})(this.exports = (function() {
-    var proto = empty.prototype = this;
-    function empty() {
-        // Avoid "TypeError: type error" in webkit:
-        this.setTimeout = function(fn, delay) {
-            return proto.setTimeout(fn, delay);
-        };
-    }
-    return new empty;
-})());
+})(this);

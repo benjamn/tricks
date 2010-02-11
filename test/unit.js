@@ -1,6 +1,6 @@
 var Evidence = require("./evidence").Evidence;
 
-Evidence.TestCase.extend("Sanity", {
+Evidence({
     setUp: function() {},
     testEqual: function() {
         this.assertEqual(1, 1);
@@ -9,5 +9,3 @@ Evidence.TestCase.extend("Sanity", {
         this.assertEqual(2, 3);
     }
 });
-
-Evidence.AutoRunner.run();

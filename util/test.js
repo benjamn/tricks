@@ -1,8 +1,7 @@
 var Evidence = require("../test/evidence").Evidence,
-    whenReady = require("../dom/ready").whenReady,
     Set = require("./set").Set;
 
-Evidence.TestCase.extend({
+Evidence({
 
     testObjMistakenForString: function() {
         var s1 = new Set;
@@ -62,8 +61,4 @@ Evidence.TestCase.extend({
         this.assertEqual(set.size(), 0);
     }
 
-});
-
-whenReady(function() {
-    Evidence.AutoRunner.run();
 });
