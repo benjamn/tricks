@@ -46,10 +46,10 @@ function TaggingSet() {
         return true;
     };
 
-    this.each = function(callback) {
+    this.each = function(callback, context) {
         for (var ref in tagged)
             if (tagged[ref][tag] === ref)
-                callback(tagged[ref]);
+                callback.call(context, tagged[ref]);
     };
 
 }
@@ -76,9 +76,9 @@ function OneToStringSet() {
         return true;
     };
 
-    this.each = function(callback) {
+    this.each = function(callback, context) {
         for (var str in elems)
-            callback(elems[str]);
+            callback.call(context, elems[str]);
     };
 
 }
@@ -119,12 +119,12 @@ function ManyToStringSet() {
         return true;
     };
 
-    this.each = function(callback) {
+    this.each = function(callback, context) {
         for (var str in lists)
             for (var list = lists[str],
                      i = list.length - 1;
                  i >= 0; --i)
-                callback(list[i]);
+                callback.call(context, list[i]);
     };
 
 }
@@ -160,10 +160,17 @@ exports.Set = function() {
         return getSubset(elem).remove(elem);
     };
 
-    this.each = function(callback) {
+    this.each = function(callback, context) {
         for (var type in subsets)
             if (typeof subsets[type] == "object")
-                subsets[type].each(callback);
+                subsets[type].each(callback, context);
+    };
+
+    // TODO Track size intelligently.
+    this.size = function() {
+        var count = 0;
+        this.each(function() { count += 1 });
+        return count;
     };
 
 };
