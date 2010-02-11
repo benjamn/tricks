@@ -19,7 +19,7 @@ exports.addEvent = document.addEventListener
 
 exports.removeEvent = document.removeEventListener
     ? function(elem, name, wrapper) {
-        elem.removeEventListener(name, wrapper);
+        elem.removeEventListener(name, wrapper, false);
     } : function(elem, name, wrapper) {
         elem.detachEvent("on" + name, wrapper);
     };
