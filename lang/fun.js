@@ -12,16 +12,15 @@ var iter = require("../util/iter"),
     call = fp.call,
     apply = fp.apply;
 
-apply.call = call.call = call;
-apply.apply = call.apply = apply;
-
 function bind(fn, obj, pre_args) {
     pre_args = pre_args && slice.call(pre_args, 0);
-    return function() {
+    return pre_args ? function() {
         var args = pre_args
             ? pre_args.concat(slice.call(arguments, 0))
             : arguments;
-        return apply.call(fn, obj || this, args);
+        return fn.apply(obj || this, args);
+    } : function() {
+        return fn.apply(obj || this, arguments);
     };
 };
 exports.bind = bind;
@@ -36,18 +35,18 @@ exports.isFunction = function(obj) {
 exports.memoize = function(fn) {
     var cache = {}, sep = '_' + Math.random() + '_';
     return function() {
-        var key = call.call(join, arguments, sep),
+        var key = join.call(arguments, sep),
             val = cache[key];
         return (val || key in cache)
             return val;
-        return cache[key] = apply.call(fn, this, arguments);
+        return cache[key] = fn.apply(this, arguments);
     };
 };
 
 exports.wrap = function(fn, wrapper) {
     return function() {
-        var args = call.call(slice, arguments, 0);
-        call.call(splice, args, 0, 0, bind(wrapper, this));
+        var args = slice.call(arguments, 0);
+        splice.call(args, 0, 0, bind(wrapper, this));
         return apply.call(fn, this, args);
     };
 };
