@@ -120,3 +120,15 @@ exports.isTextNode = function(node) {
 exports.isDocumentNode = function(node) {
     return !!(node && node.nodeType == 9);
 };
+
+var nativeScrollTo = window.scrollTo;
+exports.scrollTo = function(node, padding_opt) {
+    var dx = -(padding_opt || 0),
+        dy = dx;
+    while (node) {
+        dx += node.offsetLeft || 0;
+        dy += node.offsetTop || 0;
+        node = node.offsetParent;
+    }
+    nativeScrollTo(dx, dy);
+};
