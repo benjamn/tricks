@@ -16,8 +16,8 @@ function keys(obj) {
         if (!seen.hasOwnProperty(k))
             seen[k] = obj[ks[ks.length] = k];
     while ((n = natives[i++]))
-        // Not strictly correct when obj[n] === Object.prototype[n] but n
-        // is defined in obj's prototype chain before Object.prototype:
+        // Not strictly correct when obj[n] === Object.prototype[n] and n
+        // is defined in obj's prototype chain before Object.prototype.
         if (obj[n] !== seen[n] ||
             obj.hasOwnProperty(n))
             ks[ks.length] = n;
