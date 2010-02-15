@@ -1,26 +1,26 @@
 require("./hasOwnProperty");
 
-var natives = ['toString',
-               'valueOf',
-               'constructor',
-               'propertyIsEnumerable',
-               'isPrototypeOf',
-               'hasOwnProperty',
-               'toLocaleString'];
+var natives = ["toString",
+               "valueOf",
+               "constructor",
+               "propertyIsEnumerable",
+               "isPrototypeOf",
+               "hasOwnProperty",
+               "toLocaleString"];
 
-function keys(obj, includeNatives) {
-    var seen = {}, ks = [];
-    if (typeof obj == 'object') {
-        for (var k in obj)
-            if (!seen.hasOwnProperty(k)) {
-                seen[k] = obj[k];
-                ks[ks.length] = k;
-            }
-        if (includeNatives)
-            for (var n, i = 0; n = natives[i]; i++)
-                if (obj[n] !== seen[n])
-                    ks[ks.length] = n;
-    }
+function keys(obj) {
+    var seen = {},
+        k, ks = [],
+        n, i = 0;
+    for (k in obj)
+        if (!seen.hasOwnProperty(k))
+            seen[k] = obj[ks[ks.length] = k];
+    while ((n = natives[i++]))
+        // Not strictly correct when obj[n] === Object.prototype[n] but n
+        // is defined in obj's prototype chain before Object.prototype:
+        if (obj[n] !== seen[n] ||
+            obj.hasOwnProperty(n))
+            ks[ks.length] = n;
     return ks;
 }
 exports.keys = keys;
@@ -31,14 +31,13 @@ exports.clone = function(obj) {
     return new empty;
 };
 
-exports.foreach = function(obj, fn, includeNatives) {
-    each(keys(obj, includeNatives),
-         function(k) { fn(k, obj[k]) });
+exports.foreach = function(obj, fn) {
+    each(keys(obj), function(k) { fn(k, obj[k]) });
     return obj;
 };
 
-exports.extend = function(dst, src, includeNatives) {
-    var k, ks = keys(src, includeNatives), dv, sv;
+exports.extend = function(dst, src) {
+    var k, ks = keys(src), dv, sv;
     for (var i = 0; k = ks[i]; i++)
         if ((dv = dst[k]) !==
             (sv = src[k]))
