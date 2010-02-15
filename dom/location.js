@@ -96,6 +96,8 @@ var Location = Base.derive({
         return new Location({ node: leaf, offset: offset });
     },
 
+    // N.B., the result of a cut is invalidated if either of the returned
+    // nodes are moved or removed.
     cut: function() {
         var grounded = this.ground(),
             node = grounded.node,
@@ -158,6 +160,8 @@ Location.fromString = function(s) {
 
 Location.fromNodeOffset = function(node, offset) {
     if (isTxt(node)) {
+        // TODO Destructive modification of the DOM invalidates selection
+        // ranges, so we should really use str_atom_count instead.
         var saved = node.nodeValue;
         node.nodeValue = saved.slice(0, offset);
         offset = leaf_atom_count(node);

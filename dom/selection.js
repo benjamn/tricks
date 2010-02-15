@@ -11,6 +11,7 @@ var Selection = Base.derive({
 
     leaves: function() {
         var leaves = [];
+        // N.B., this.opening must not be cut before this.closing.
         for (var last = this.closing.cut()[1],
                  leaf = this.opening.cut()[1];
              leaf && leaf !== last;
@@ -77,8 +78,8 @@ var W3CSelection = Selection.derive({
     reselect: function() {
         var sel = this.deselect(),
             range = document.createRange(),
-            opening = this.opening.cut()[1],
-            closing = this.closing.cut()[1];
+            closing = this.closing.cut()[1],
+            opening = this.opening.cut()[1];
         range.setStart(opening, 0);
         range.setEnd(closing, 0);
         if (sel)
@@ -89,11 +90,11 @@ var W3CSelection = Selection.derive({
 W3CSelection.getCurrent = function() {
     var range = window.getSelection();
     if (range.isCollapsed)
-        return null
-    var anchor = Location.fromNodeOffset(range.anchorNode,
-                                         range.anchorOffset),
-        focus = Location.fromNodeOffset(range.focusNode,
-                                        range.focusOffset);
+        return null;
+    var an = range.anchorNode, ao = range.anchorOffset,
+        fn = range.focusNode, fo = range.focusOffset,
+        anchor = Location.fromNodeOffset(an, ao),
+        focus = Location.fromNodeOffset(fn, fo);
     var order = cmp(anchor.node, focus.node);
     if (order == 0)
         order = focus.offset - anchor.offset;
