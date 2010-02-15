@@ -5,17 +5,33 @@ var Base = require("../lang/class").Base,
     fore = dom.foreshadow,
     first = dom.firstLeaf,
     isTxt = dom.isTextNode,
-    infertile = dom.infertile;
+    infertile = dom.infertile,
+    getStyle = dom.getStyle;
 
 function str_atom_count(str, right_strip) {
     if (right_strip)
-        str = str.replace(/\s*$/m, '');
+        str = str.replace(/\s*$/m, "");
     return str.replace(/\s+/gm, " ").length;
 }
+
 function leaf_atom_count(leaf, right_strip) {
-    return (isTxt(leaf)
-            ? str_atom_count(leaf.nodeValue, right_strip)
-            : (infertile(leaf) ? 1 : 0));
+    if (!isTxt(leaf))
+        return infertile(leaf) ? 1 : 0;
+    var text = leaf.nodeValue;
+    if (getStyle(leaf, "whiteSpace") == "pre")
+        return text.length;
+    return str_atom_count(text, right_strip);
+}
+
+function atom_offset_to_str_pos(leaf, offset) {
+    var pos = offset;
+    if (!isTxt(leaf) || getStyle(leaf, "whiteSpace") == "pre")
+        return pos;
+    // The atom count is always an underestimate of the real position, so
+    // this loop will terminate.
+    while (str_atom_count(text.slice(0, pos)) < offset)
+        pos++;
+    return pos;
 }
 
 function starts_with_space(node) {
@@ -42,38 +58,32 @@ function sum(arr, right_strip) {
     return result;
 }
 
-function atom_offset_to_str_pos(text, offset) {
-    var pos = offset;
-    // The atom count is always an underestimate of the real position, so
-    // this loop will indeed terminate.
-    while (str_atom_count(text.slice(0, pos)) < offset)
-        pos++;
-    return pos;
-}
-    
 var Location = Base.derive({
     
-    /* Initialization example:
-     * var loc1 = new Location({ node: $$('li')[1], offset: 3 });
-     * var loc2 = new Location(loc1);
-     */
-
     lift: function(predicate) {
         var node = this.node,
             offset = this.offset;
-        if (!node)
-            return null;
-        while (node.parentNode &&
+        while (node &&
+               node.parentNode &&
                node != document.body &&
                !predicate(node))
         {
             offset += sum(fore(node), starts_with_space(node));
             node = node.parentNode;
         }
-        return new Location({ node: node, offset: offset });
+        return node && new Location({
+            node: node,
+            offset: offset
+        });
+    },
+
+    isGrounded: function() {
+        return isTxt(this.node);
     },
 
     ground: function() {
+        if (this.isGrounded(this.node))
+            return this;
         var offset = this.offset,
             leaf = first(this.node),
             nextLeaf = succ(leaf);
@@ -87,9 +97,9 @@ var Location = Base.derive({
     },
 
     cut: function() {
-        var loc = this.ground(),
-            node = loc.node,
-            offset = loc.offset;
+        var grounded = this.ground(),
+            node = grounded.node,
+            offset = grounded.offset;
         if (offset == 0)
             return [pred(node), node];
         // Strict > should never happen if this.ground() did its job.
@@ -114,7 +124,7 @@ var Location = Base.derive({
 
     toString: function() {
         function id_or_root(node) {
-            return document.getElementById(node.id) === node;
+            return document.getElementById(node.id || "") === node;
         }   
         var lifted = this.lift(id_or_root);
         return (id_or_root(lifted.node)
@@ -144,6 +154,22 @@ Location.fromString = function(s) {
         return null;
 
     return new Location(args).normalize();
+};
+
+Location.fromNodeOffset = function(node, offset) {
+    if (isTxt(node)) {
+        var saved = node.nodeValue;
+        node.nodeValue = saved.slice(0, offset);
+        offset = leaf_atom_count(node);
+        node.nodeValue = saved;
+    } else {
+        // When offset is already 0, it can't get any smaller.
+        offset = offset && sum(fore(node.childNodes[offset]));
+    }
+    return new Location({
+        node: node,
+        offset: offset
+    }).normalize();
 };
 
 exports.Location = Location;

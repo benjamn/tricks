@@ -5,7 +5,7 @@ var Base = require("../lang/class").Base,
     isTxt = dom.isTextNode,
     succ = dom.successor,
     cmp = dom.compareNodes,
-    gsel;
+    scrollTo = dom.scrollTo;
 
 var Selection = Base.derive({
 
@@ -19,16 +19,8 @@ var Selection = Base.derive({
         return leaves;
     },
 
-    normalize: function() {
-        return new (chooseSubclass())({
-            opening: this.opening.normalize(),
-            closing: this.closing.normalize()
-        });
-    },
-    
     map: function(iter) {
-        var leaves = this.normalize().leaves();
-        this.reselect();
+        var leaves = this.leaves();
         if (iter)
             for (var i = 0; leaf = leaves[i]; ++i)
                 leaves[i] = iter(leaf);
@@ -41,6 +33,12 @@ var Selection = Base.derive({
         }).join('');
     },
 
+    scrollTo: function(padding_opt) {
+        scrollTo(this.opening.ground().node,
+                 padding_opt);
+    },
+
+    deselect: function() {},
     reselect: function() {},
 
     toString: function() {
@@ -56,8 +54,7 @@ function chooseSubclass() {
 };
 
 Selection.getCurrent = function() {
-    var sel = chooseSubclass().getCurrent();
-    return sel && sel.normalize();
+    return chooseSubclass().getCurrent();
 };
 
 Selection.fromString = function(s) {
@@ -71,17 +68,21 @@ Selection.fromString = function(s) {
 };
     
 var W3CSelection = Selection.derive({
+    deselect: function() {
+        var sel = window.getSelection();
+        if (sel)
+            sel.removeAllRanges();
+        return sel;
+    },
     reselect: function() {
-        var selection = window.getSelection();
-        selection.removeAllRanges();
-        var range = document.createRange(),
-            opening = this.opening.ground(),
-            closing = this.closing.ground();
-        range.setStart(opening.node,
-                       opening.offset);
-        range.setEnd(closing.node,
-                     closing.offset);
-        selection.addRange(range);
+        var sel = this.deselect(),
+            range = document.createRange(),
+            opening = this.opening.cut()[1],
+            closing = this.closing.cut()[1];
+        range.setStart(opening, 0);
+        range.setEnd(closing, 0);
+        if (sel)
+            sel.addRange(range);
     }
 });
 
@@ -89,13 +90,10 @@ W3CSelection.getCurrent = function() {
     var range = window.getSelection();
     if (range.isCollapsed)
         return null
-    var anchor = new Location({
-        node:   range.anchorNode,
-        offset: range.anchorOffset
-    }), focus = new Location({
-        node:   range.focusNode,
-        offset: range.focusOffset
-    });
+    var anchor = Location.fromNodeOffset(range.anchorNode,
+                                         range.anchorOffset),
+        focus = Location.fromNodeOffset(range.focusNode,
+                                        range.focusOffset);
     var order = cmp(anchor.node, focus.node);
     if (order == 0)
         order = focus.offset - anchor.offset;
@@ -108,7 +106,7 @@ W3CSelection.getCurrent = function() {
 
 var IESelection = Selection.derive({
     reselect: function() {
-        // TODO
+        alert("Selection not yet implemented in IE.");
     }
 });
 
@@ -119,10 +117,7 @@ IESelection.rangeToLoc = function(range) {
     range.pasteHTML("<span id='" + id + "'></span>");
     var span = document.getElementById(id),
         parent = range.parentElement(),
-        loc = new Location({
-            node: span,
-            offset: 0
-        }).lift(function(node) {
+        loc = Location.fromNodeOffset(span, 0).lift(function(node) {
             return node === parent;
         });
     parent.removeChild(span);
