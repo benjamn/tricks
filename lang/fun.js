@@ -35,7 +35,7 @@ exports.isFunction = function(obj) {
 exports.memoize = function(fn) {
     var cache = {}, sep = '_' + Math.random() + '_';
     return function() {
-        var key = join.call(arguments, sep),
+        var key = sep + join.call(arguments, sep),
             val = cache[key];
         return (val || key in cache)
             return val;
