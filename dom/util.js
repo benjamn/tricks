@@ -1,3 +1,5 @@
+var camelize = require("../lang/str").camelize;
+
 function firstLeaf(node) {
     while (node && node.firstChild)
         node = node.firstChild;
@@ -114,9 +116,10 @@ exports.DOCUMENT_NODE = 9;
 exports.isElementNode = function(node) {
     return !!(node && node.nodeType == 1)
 };
-exports.isTextNode = function(node) {
+function isTextNode(node) {
     return !!(node && node.nodeType == 3);
 };
+exports.isTextNode = isTextNode;
 exports.isDocumentNode = function(node) {
     return !!(node && node.nodeType == 9);
 };
@@ -132,3 +135,19 @@ exports.scrollTo = function(node, padding_opt) {
     }
     nativeScrollTo(dx, dy);
 };
+
+// From prototype.js
+function getStyle(node, style) {
+    if (isTextNode(node))
+        return getStyle(node.parentNode, style);
+    style = style == 'float' ? 'cssFloat' : camelize(style);
+    var value = node.style[style];
+    if (!value || value == 'auto') {
+        var css = document.defaultView.getComputedStyle(node, null);
+        value = css ? css[style] : null;
+    }
+    if (style == 'opacity')
+        return value ? parseFloat(value) : 1.0;
+    return value == 'auto' ? null : value;
+}
+exports.getStyle = getStyle;
