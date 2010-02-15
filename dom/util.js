@@ -128,6 +128,9 @@ var nativeScrollTo = window.scrollTo;
 exports.scrollTo = function(node, padding_opt) {
     var dx = -(padding_opt || 0),
         dy = dx;
+    // TODO Wrap text nodes in spans, and possibly use setTimeout.
+    while (node && !node.offsetParent)
+        node = node.parentNode;
     while (node) {
         dx += node.offsetLeft || 0;
         dy += node.offsetTop || 0;
