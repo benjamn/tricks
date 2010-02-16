@@ -24,13 +24,14 @@ function leaf_atom_count(leaf, right_strip) {
 }
 
 function atom_offset_to_str_pos(leaf, offset) {
-    var pos = offset;
     if (!isTxt(leaf) || getStyle(leaf, "whiteSpace") == "pre")
-        return pos;
+        return offset;
     // The atom count is always an underestimate of the real position, so
     // this loop will terminate.
+    var pos = offset,
+        text = leaf.nodeValue;
     while (str_atom_count(text.slice(0, pos)) < offset)
-        pos++;
+        pos += 1;
     return pos;
 }
 
@@ -109,7 +110,7 @@ var Location = Base.derive({
             return [node, succ(node)];
         if (isTxt(node)) {
             var text = node.nodeValue,
-                pos = atom_offset_to_str_pos(text, offset),
+                pos = atom_offset_to_str_pos(node, offset),
                 preText = text.slice(0, pos),
                 preNode = document.createTextNode(preText);
             node.parentNode.insertBefore(preNode, node);
@@ -127,7 +128,7 @@ var Location = Base.derive({
     toString: function() {
         function id_or_root(node) {
             return document.getElementById(node.id || "") === node;
-        }   
+        }
         var lifted = this.lift(id_or_root);
         return (id_or_root(lifted.node)
                 ? lifted.node.id + ":"
