@@ -1,5 +1,5 @@
-- Shrink Selections to minimize common ancestor distance.
-  - Support toward_opt parameter to normalize.
+x Shrink Selections to minimize common ancestor distance.
+  x Support toward_opt parameter to normalize.
 - Lift Locations to common ancestor, merge serialization to save URL length.
 - Reify selection styles.
 - Create proper development/stage/production environment.

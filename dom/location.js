@@ -1,7 +1,9 @@
 var Base = require("../lang/class").Base,
     dom = require("./util"),
+    xpath = require("./xpath"),
     succ = dom.successor,
     pred = dom.predecessor,
+    cmp = dom.compareNodes,
     fore = dom.foreshadow,
     first = dom.firstLeaf,
     isTxt = dom.isTextNode,
@@ -59,6 +61,10 @@ function sum(arr, right_strip) {
     return result;
 }
 
+function isNotTxt(node) {
+    return !isTxt(node);
+}
+
 var Location = Base.derive({
     
     lift: function(predicate) {
@@ -78,13 +84,7 @@ var Location = Base.derive({
         });
     },
 
-    isGrounded: function() {
-        return isTxt(this.node);
-    },
-
     ground: function() {
-        if (this.isGrounded(this.node))
-            return this;
         var offset = this.offset,
             leaf = first(this.node),
             nextLeaf = succ(leaf);
@@ -126,37 +126,46 @@ var Location = Base.derive({
     },
 
     toString: function() {
-        function id_or_root(node) {
-            return document.getElementById(node.id || "") === node;
-        }
-        var lifted = this.lift(id_or_root);
-        return (id_or_root(lifted.node)
-                ? lifted.node.id + ":"
-                : "") + lifted.offset;
+        if (isTxt(this.node))
+            return this.lift(isNotTxt).toString();
+        return [xpath.toXPath(this.node),
+                this.offset].join(":");
     },
 
-    normalize: function() {
-        return this.ground().lift(function(node) {
-            return !isTxt(node);
-        });
+    normalize: function(toward_opt) {
+        var grounded = this.ground();
+        if (toward_opt) {
+            var order = grounded.compareTo(toward_opt);
+            if (order < 0) {
+                while (grounded.offset == 0) {
+                    grounded.node = pred(grounded.node);
+                    grounded.offset = leaf_atom_count(grounded.node);
+                }
+            } else if (order > 0) {
+                while (grounded.offset >= leaf_atom_count(grounded.node)) {
+                    grounded.node = succ(grounded.node);
+                    grounded.offset = 0;
+                }
+            }
+        }
+        return grounded.lift(isNotTxt);
+    },
+
+    compareTo: function(that) {
+        var gthis = this.ground(),
+            gthat = that.ground();
+        return (cmp(gthis.node, gthat.node) ||
+                gthat.offset - gthis.offset);
     }
 
 });
 
 Location.fromString = function(s) {
-    var splat = s.split(":"),
-        args = { offset: +splat.pop() };
-
-    if (splat.length == 0)
-        args.node = document.body;
-
-    if (splat.length == 1)
-        args.node = document.getElementById(splat.pop());
-
-    if (!args.node)
-        return null;
-
-    return new Location(args).normalize();
+    var splat = s.split(":");
+    return new Location({
+        node: xpath.toNode(splat[0]),
+        offset: +splat[1]
+    });
 };
 
 Location.fromNodeOffset = function(node, offset) {
@@ -174,7 +183,7 @@ Location.fromNodeOffset = function(node, offset) {
     return new Location({
         node: node,
         offset: offset
-    }).normalize();
+    });
 };
 
 exports.Location = Location;

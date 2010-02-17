@@ -4,7 +4,6 @@ var Base = require("../lang/class").Base,
     dom = require("./util"),
     isTxt = dom.isTextNode,
     succ = dom.successor,
-    cmp = dom.compareNodes,
     scrollTo = dom.scrollTo;
 
 var Selection = Base.derive({
@@ -59,13 +58,14 @@ Selection.getCurrent = function() {
 };
 
 Selection.fromString = function(s) {
-    var splat = s.split(",");
+    var splat = s.split(","),
+        args = {};
     if (splat.length != 2)
         return null;
-    return new (chooseSubclass())({
-        opening: Location.fromString(splat[0]),
-        closing: Location.fromString(splat[1])
-    });
+    args.opening = Location.fromString(splat[0]);
+    args.closing = Location.fromString(splat[1]).normalize(args.opening);
+    args.opening = args.opening.normalize(args.closing);
+    return new (chooseSubclass())(args);
 };
     
 var W3CSelection = Selection.derive({
@@ -94,13 +94,12 @@ W3CSelection.getCurrent = function() {
     var an = range.anchorNode, ao = range.anchorOffset,
         fn = range.focusNode, fo = range.focusOffset,
         anchor = Location.fromNodeOffset(an, ao),
-        focus = Location.fromNodeOffset(fn, fo);
-    var order = cmp(anchor.node, focus.node);
-    if (order == 0)
-        order = focus.offset - anchor.offset;
+        focus = Location.fromNodeOffset(fn, fo).normalize(anchor);
+    anchor = anchor.normalize(focus);
+    var swap = anchor.compareTo(focus) < 0;
     return new W3CSelection({
-        opening: (order < 0) ? focus : anchor,
-        closing: (order < 0) ? anchor : focus
+        opening: swap ? focus : anchor,
+        closing: swap ? anchor : focus
     });
 };
 
@@ -129,13 +128,14 @@ IESelection.getCurrent = function() {
     var range = document.selection.createRange();
     if (!range.htmlText)
         return null;
-    var copy = range.duplicate();
+    var copy = range.duplicate(),
+        args = {};
     range.collapse(true);
     copy.collapse(false);
-    return new IESelection({
-        opening: this.rangeToLoc(range),
-        closing: this.rangeToLoc(copy)        
-    });
+    args.opening = this.rangeToLoc(range);
+    args.closing = this.rangeToLoc(copy).normalize(args.opening);
+    args.opening = args.opening.normalize(args.closing);
+    return new IESelection(args);
 };
 
 exports.Selection = Selection;
