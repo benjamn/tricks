@@ -144,7 +144,7 @@ function getStyle(node, style) {
     if (isTextNode(node))
         return getStyle(node.parentNode, style);
     style = style == 'float' ? 'cssFloat' : camelize(style);
-    var value = node.style[style];
+    var value = (node.currentStyle || node.style)[style];
     if (!value || value == 'auto') {
         var css = document.defaultView.getComputedStyle(node, null);
         value = css ? css[style] : null;
