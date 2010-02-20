@@ -27,6 +27,24 @@ var Selection = Base.derive({
         return leaves;
     },
 
+    unwrap: function() {
+        this.deselect();
+        // TODO
+    },
+    
+    wrap: function(styles) {
+        this.unwrap();
+        this.map(function(leaf) {
+            var parent = leaf.parentNode,
+                sib = leaf.nextSibling,
+                wrapper = document.createElement("span");
+            for (var p in styles)
+                wrapper.style[p] = styles[p];
+            wrapper.appendChild(parent.removeChild(leaf));
+            parent.insertBefore(wrapper, sib);
+        });
+    },
+
     getText: function() {
         return this.map(function(leaf) {
             return isTxt(leaf) ? leaf.nodeValue : '';
