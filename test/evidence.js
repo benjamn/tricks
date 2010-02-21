@@ -1481,6 +1481,7 @@ var UI = (function() {
   exports.Evidence = global.Evidence = Evidence;
 
   if (global.location) {
+    return; // Call AutoRunner.run() explicitly
     global.onload = function() {
       if (typeof originalOnload === 'function') {
         originalOnload.call(global);
