@@ -1,13 +1,26 @@
 <html>
   <head>
-
-    <script src="/js/loader.js"
-            require="/js#aegis/test/unit">
+    <script src="http://github.com/benjamn/hermes/raw/master/loader.js"
+            require="../..#tricks/test/suite">
     </script>
-
   </head>
   <body>
-    <p>The quick brown fox jumps over the lazy dog.
-    <p>"In a land where in the realm of thinking nearly everyone crosses on the green, it would be good to have a few more jaywalkers" (Martha Foley).
+    <h1>See console for test output</h1>
+    <div id="ancestor">
+      <div>
+        <span>
+          Questions:
+          <ul>
+            <li>to be</li>
+            <li id="desc1">not to be</li>
+          </ul>
+        </span>
+      </div>
+      <div>
+        <p>The quick brown fox jumps over the lazy dog.</p>
+        <p><i>An italicized sentence that <b id="desc2">turns bold</b> in the middle.</i></p>
+        <p>"In a land where in the realm of thinking nearly everyone crosses on the green, it would be good to have a few more jaywalkers" (Martha Foley).
+      </div>
+    </div>
   </body>
 </html>
