@@ -1,12 +1,20 @@
 var Base = require("../lang/class").Base,
     extend = require("../lang/obj").extend,
     Location = require("./location").Location,
+    Set = require("../util/set").Set,
     dom = require("./util"),
     isTxt = dom.isTextNode,
     succ = dom.successor,
     scrollTo = dom.scrollTo;
 
-var Selection = Base.derive({
+var selections = new Set,
+    Selection = Base.derive({
+
+    initialize: function() {
+        this.sup(arguments);
+        this.wrappers = new Set;
+        selections.add(this);
+    },
 
     leaves: function() {
         var leaves = [];
@@ -19,22 +27,32 @@ var Selection = Base.derive({
         return leaves;
     },
 
-    map: function(iter) {
+    mapLeaves: function(iter) {
         var leaves = this.leaves();
         if (iter)
             for (var i = 0; leaf = leaves[i]; ++i)
-                leaves[i] = iter(leaf);
+                leaves[i] = iter.call(this, leaf);
         return leaves;
     },
 
     unwrap: function() {
         this.deselect();
-        // TODO
+        var ws = [];
+        // Precompute so that removal cannot cause problems.
+        this.wrappers.each(function(w) { ws[ws.length] = w });
+        for (var i = 0, w, parent, child; w = ws[i]; i++) {
+            if ((parent = w.parentNode)) {
+                while ((child = w.firstChild))
+                    parent.insertBefore(w.removeChild(child), w);
+                parent.removeChild(w);
+            }
+            this.wrappers.remove(w);
+        }
     },
     
     wrap: function(styles) {
         this.unwrap();
-        this.map(function(leaf) {
+        this.mapLeaves(function(leaf) {
             var parent = leaf.parentNode,
                 sib = leaf.nextSibling,
                 wrapper = document.createElement("span");
@@ -42,11 +60,12 @@ var Selection = Base.derive({
                 wrapper.style[p] = styles[p];
             wrapper.appendChild(parent.removeChild(leaf));
             parent.insertBefore(wrapper, sib);
+            this.wrappers.add(wrapper);
         });
     },
 
     getText: function() {
-        return this.map(function(leaf) {
+        return this.mapLeaves(function(leaf) {
             return isTxt(leaf) ? leaf.nodeValue : '';
         }).join('');
     },
@@ -64,6 +83,10 @@ var Selection = Base.derive({
     }
 
 });
+
+Selection.each = function(callback, context) {
+    return selections.each(callback, context);
+};
 
 function chooseSubclass() {
     if (document.selection)
