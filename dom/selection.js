@@ -5,6 +5,7 @@ var Base = require("../lang/class").Base,
     dom = require("./util"),
     isTxt = dom.isTextNode,
     nextLeaf = dom.nextLeaf,
+    canParent = dom.canParent,
     scrollTo = dom.scrollTo;
 
 var allSelections = new Set,
@@ -61,6 +62,8 @@ var allSelections = new Set,
             var parent = leaf.parentNode,
                 sib = leaf.nextSibling,
                 wrapper = document.createElement("span");
+            if (!canParent(parent, wrapper))
+                return;
             for (var p in styles)
                 wrapper.style[p] = styles[p];
             wrapper.appendChild(parent.removeChild(leaf));

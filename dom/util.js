@@ -1,4 +1,5 @@
-var camelize = require("../lang/str").camelize;
+var each = require("../util/iter").each,
+    camelize = require("../lang/str").camelize;
 
 function firstLeaf(node) {
     while (node && node.firstChild)
@@ -103,9 +104,29 @@ exports.compareNodes = function(pred, succ) {
 }
 
 var infertile_pattern =
-    /^(script|area|base|basefont|br|col|frame|hr|img|input|isindex|link|meta|param)$/i;
-exports.infertile = function(node) {
-    return !!(node && infertile_pattern.test(node.nodeName));
+    /^(script|area|base|basefont|br|col|frame|hr|img|input|isindex|link|meta|param)$/i,
+    infertile = exports.infertile = function(node) {
+        return !!(node && infertile_pattern.test(node.nodeName));
+    };
+    
+exports.canParent = function(parent, child) {
+    if (infertile(parent))
+        return false;
+
+    var pn = parent.nodeName,
+        cn = child.nodeName;
+
+    // TODO Make these cases more exhaustive.
+    
+    if (/^(table|tbody|thead)$/i.test(pn) &&
+        !/^(th|tr)$/i.test(cn))
+        return false;
+
+    if (/^(th|tr)$/i.test(pn) &&
+        !/^td$/i.test(cn))
+        return false;
+
+    return true;
 };
 
 exports.ELEMENT_NODE = 1;
