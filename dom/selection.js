@@ -7,13 +7,14 @@ var Base = require("../lang/class").Base,
     succ = dom.successor,
     scrollTo = dom.scrollTo;
 
-var selections = new Set,
+var allSelections = new Set,
+    allWrappers = new Set,
     Selection = Base.derive({
 
     initialize: function() {
         this.sup(arguments);
         this.wrappers = new Set;
-        selections.add(this);
+        allSelections.add(this);
     },
 
     leaves: function() {
@@ -47,11 +48,15 @@ var selections = new Set,
                 parent.removeChild(w);
             }
             this.wrappers.remove(w);
+            allWrappers.remove(w);
         }
     },
     
-    wrap: function(styles) {
-        this.unwrap();
+    wrap: function(styles, unwrapAll) {
+        if (unwrapAll)
+            allSelections.each(function(s) { s.unwrap() });
+        else
+            this.unwrap();
         this.mapLeaves(function(leaf) {
             var parent = leaf.parentNode,
                 sib = leaf.nextSibling,
@@ -61,6 +66,7 @@ var selections = new Set,
             wrapper.appendChild(parent.removeChild(leaf));
             parent.insertBefore(wrapper, sib);
             this.wrappers.add(wrapper);
+            allWrappers.add(wrapper);
         });
     },
 
@@ -84,10 +90,6 @@ var selections = new Set,
 
 });
 
-Selection.each = function(callback, context) {
-    return selections.each(callback, context);
-};
-
 function chooseSubclass() {
     if (document.selection)
         return IESelection;
@@ -98,15 +100,25 @@ Selection.getCurrent = function() {
     return chooseSubclass().getCurrent();
 };
 
+function wrapperTest(n) { return !allWrappers.contains(n) }
+function endpoints(opening, closing) {
+    if (opening.compareTo(closing) < 0) {
+        var temp = opening;
+        opening = closing;
+        closing = temp;
+    }
+    opening = opening.normalize(closing);
+    closing = closing.normalize(opening);
+    return { opening: opening.lift(wrapperTest),
+             closing: closing.lift(wrapperTest) };
+}
+    
 Selection.fromString = function(s) {
-    var splat = s.split(","),
-        args = {};
+    var splat = s.split(",");
     if (splat.length != 2)
         return null;
-    args.opening = Location.fromString(splat[0]);
-    args.closing = Location.fromString(splat[1]).normalize(args.opening);
-    args.opening = args.opening.normalize(args.closing);
-    return new (chooseSubclass())(args);
+    return new (chooseSubclass())(endpoints(Location.fromString(splat[0]),
+                                            Location.fromString(splat[1])));
 };
     
 var W3CSelection = Selection.derive({
@@ -133,17 +145,10 @@ W3CSelection.getCurrent = function() {
     if (range.isCollapsed)
         return null;
     var an = range.anchorNode, ao = range.anchorOffset,
-        fn = range.focusNode, fo = range.focusOffset,
-        anchor = Location.fromNodeOffset(an, ao),
-        focus = Location.fromNodeOffset(fn, fo).normalize(anchor);
-    anchor = anchor.normalize(focus);
-    var swap = anchor.compareTo(focus) < 0;
-    return new W3CSelection({
-        opening: swap ? focus : anchor,
-        closing: swap ? anchor : focus
-    });
+        fn = range.focusNode, fo = range.focusOffset;
+    return new W3CSelection(endpoints(Location.fromNodeOffset(an, ao),
+                                      Location.fromNodeOffset(fn, fo)));
 };
-
 
 var IESelection = Selection.derive({
     reselect: function() {
@@ -164,19 +169,16 @@ IESelection.rangeToLoc = function(range) {
     parent.removeChild(span);
     return loc;
 };
-    
+
 IESelection.getCurrent = function() {
     var range = document.selection.createRange();
     if (!range.htmlText)
         return null;
-    var copy = range.duplicate(),
-        args = {};
+    var copy = range.duplicate();
     range.collapse(true);
     copy.collapse(false);
-    args.opening = this.rangeToLoc(range);
-    args.closing = this.rangeToLoc(copy).normalize(args.opening);
-    args.opening = args.opening.normalize(args.closing);
-    return new IESelection(args);
+    return new IESelection(endpoints(this.rangeToLoc(range),
+                                     this.rangeToLoc(copy)));
 };
 
 exports.Selection = Selection;
