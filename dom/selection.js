@@ -4,7 +4,7 @@ var Base = require("../lang/class").Base,
     Set = require("../util/set").Set,
     dom = require("./util"),
     isTxt = dom.isTextNode,
-    succ = dom.successor,
+    nextLeaf = dom.nextLeaf,
     scrollTo = dom.scrollTo;
 
 var allSelections = new Set,
@@ -23,7 +23,7 @@ var allSelections = new Set,
         for (var last = this.closing.cut()[1],
                  leaf = this.opening.cut()[1];
              leaf && leaf !== last;
-             leaf = succ(leaf))
+             leaf = nextLeaf(leaf))
             leaves.push(leaf);
         return leaves;
     },

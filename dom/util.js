@@ -14,25 +14,25 @@ function lastLeaf(node) {
 }
 exports.lastLeaf = lastLeaf;
 
-function successor(node) {
+function nextLeaf(node) {
     return node && node != document.body &&
            firstLeaf(node.nextSibling ||
-                     successor(node.parentNode));
+                     nextLeaf(node.parentNode));
 }
-exports.successor = successor;
+exports.nextLeaf = nextLeaf;
 
-function predecessor(node) {
+function prevLeaf(node) {
     return node && node != document.body &&
            lastLeaf(node.previousSibling ||
-                    predecessor(node.parentNode));
+                    prevLeaf(node.parentNode));
 }
-exports.predecessor = predecessor;
+exports.prevLeaf = prevLeaf;
 
 function leaves(node, until) {
-    until = until || successor(lastLeaf(node));
+    until = until || nextLeaf(lastLeaf(node));
     for (var rv = [], leaf = firstLeaf(node);
          leaf && leaf != until;
-         leaf = successor(leaf))
+         leaf = nextLeaf(leaf))
         rv[rv.length] = leaf;
     return rv;
 }
