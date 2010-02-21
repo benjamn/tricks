@@ -106,7 +106,7 @@ var Location = Base.derive({
         if (offset == 0)
             return [pred(node), node];
         // Strict > should never happen if this.ground() did its job.
-        if (offset >= leaf_atom_count(node, true))
+        if (offset >= leaf_atom_count(node))
             return [node, succ(node)];
         if (isTxt(node)) {
             var text = node.nodeValue,
