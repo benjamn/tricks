@@ -35,6 +35,9 @@ exports.toXPath = function(node) {
         node = ancestor;
     }
 
+    if (node == document.body)
+        components[components.length] = "body";
+
     components.reverse();
     return components.join("/");
 };
