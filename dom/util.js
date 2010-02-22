@@ -145,19 +145,26 @@ exports.isDocumentNode = function(node) {
     return !!(node && node.nodeType == 9);
 };
 
-var nativeScrollTo = window.scrollTo;
+var nativeScrollTo = window.scrollTo,
+    offsetOf = exports.offsetOf = function(node) {
+        var d = { x: 0, y: 0 };
+        while (node && !node.offsetParent)
+            node = node.parentNode;
+        while (node) {
+            d.x += node.offsetLeft || 0;
+            d.y += node.offsetTop || 0;
+            node = node.offsetParent;
+        }
+        return d;
+    };
 exports.scrollTo = function(node, padding_opt) {
-    var dx = -(padding_opt || 0),
-        dy = dx;
-    // TODO Wrap text nodes in spans, and possibly use setTimeout.
-    while (node && !node.offsetParent)
-        node = node.parentNode;
-    while (node) {
-        dx += node.offsetLeft || 0;
-        dy += node.offsetTop || 0;
-        node = node.offsetParent;
-    }
-    nativeScrollTo(dx, dy);
+    padding_opt = -(padding_opt || 0);
+    var offset = offsetOf(node);
+    nativeScrollTo(offset.x + padding_opt,
+                   offset.y + padding_opt);
+};
+exports.scrollToY = function(node, padding_opt) {
+    nativeScrollTo(0, offsetOf(node).y - (padding_opt || 0));
 };
 
 // From prototype.js

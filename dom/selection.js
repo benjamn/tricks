@@ -6,7 +6,7 @@ var Base = require("../lang/class").Base,
     isTxt = dom.isTextNode,
     nextLeaf = dom.nextLeaf,
     canParent = dom.canParent,
-    scrollTo = dom.scrollTo;
+    scroll = dom.scrollToY;
 
 var allSelections = new Set,
     allWrappers = new Set,
@@ -80,8 +80,8 @@ var allSelections = new Set,
     },
 
     scrollTo: function(padding_opt) {
-        scrollTo(this.opening.ground().node,
-                 padding_opt);
+        scroll(this.opening.ground().node,
+               padding_opt);
     },
 
     deselect: function() {},
