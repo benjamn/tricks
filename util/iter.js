@@ -1,4 +1,4 @@
-function each(arr, fn) {
+exports.permissive_each = function(arr, fn) {
     for (var thrown, 
              len = arr.length,
              i = 0; i < len; ++i)
@@ -8,12 +8,17 @@ function each(arr, fn) {
         throw thrown[0];
     return arr;
 }
-exports.each = each;
+
+var each = exports.each = function(arr, fn) {
+    for (var i = 0, len = arr.length; i < len; ++i)
+        fn.call(arr, arr[i], i);
+    return arr;
+};
 
 exports.map = function(arr, fn) {
     var rv = [];
     each(arr, function(elem, i) {
-        rv[rv.length] = fn(elem, i);
+        rv[rv.length] = fn.call(arr, elem, i);
     });
     return rv;
 };
@@ -23,4 +28,13 @@ exports.reduce = function(arr, val, fn) {
         val = fn(val, elem, i);
     });
     return val;
+};
+
+exports.filter = function(arr, pred) {
+    var rv = [];
+    each(arr, function(elem) {
+        if (pred(elem))
+            rv[rv.length] = elem;
+    });
+    return rv;
 };

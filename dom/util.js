@@ -122,7 +122,7 @@ exports.canParent = function(parent, child) {
         !/^(th|tr)$/i.test(cn))
         return false;
 
-    if (/^(th|tr)$/i.test(pn) &&
+    if (/^tr$/i.test(pn) &&
         !/^td$/i.test(cn))
         return false;
 
