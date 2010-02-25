@@ -1,7 +1,16 @@
 var hasOwnProperty = require("../lang/hasOwnProperty").hasOwnProperty;
 
-function isTaggable(obj, tag) {
-    var orig = obj[tag],
+function gensym() {
+    var sym = Math.random().toString(16).split(".").pop();
+    if (sym in gensym)
+        return gensym();
+    gensym[sym] = true;
+    return sym;
+}
+
+function isTaggable(obj) {
+    var tag = gensym(),
+        orig = obj[tag],
         needToReplace = hasOwnProperty(obj, tag),
         temp = {};
     try {
@@ -20,17 +29,15 @@ function isTaggable(obj, tag) {
 
 function TaggingSet() {
 
-    var tag = ("<aegis/util/set " +
-               Math.random().toString(16).split(".").pop() + ">"),
+    var tag = "<aegis/util/set " + gensym() + ">",
         tagged = {};
 
     this.add = function(obj) {
-        if (!isTaggable(obj, tag) ||
+        if (!isTaggable(obj) ||
             this.contains(obj))
             return false;
-        while (tagged[obj[tag]] !== obj)
-            if (!((obj[tag] = Math.random().toString()) in tagged))
-                tagged[obj[tag]] = obj;
+        if (tagged[obj[tag]] !== obj)
+            tagged[obj[tag] = gensym()] = obj;
         return true;
     };
 
@@ -135,6 +142,7 @@ exports.Set = function() {
 
     var subsets = {
         "object": TaggingSet,
+        "untaggable": ManyToStringSet,
         "function": ManyToStringSet,
         "string": OneToStringSet,
         "number": OneToStringSet,
@@ -143,10 +151,11 @@ exports.Set = function() {
     };
 
     function getSubset(elem) {
-        var type = typeof elem,
-            subset = subsets[type];
-        if (typeof subset == "function")
-            subsets[type] = new subset;
+        var type = typeof elem;
+        if (type == "object" && !isTaggable(elem))
+            type = "untaggable";
+        if (typeof subsets[type] == "function")
+            subsets[type] = new subsets[type];
         return subsets[type];
     }
 
