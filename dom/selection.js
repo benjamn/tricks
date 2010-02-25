@@ -30,10 +30,13 @@ var allSelections = new Set,
     },
 
     mapLeaves: function(iter) {
-        var leaves = this.leaves();
+        var leaves = this.leaves(), thrown;
         if (iter)
             for (var i = 0; leaf = leaves[i]; ++i)
-                leaves[i] = iter.call(this, leaf);
+                try { leaves[i] = iter.call(this, leaf) }
+                catch (x) { thrown = thrown || [x] }
+        if (thrown)
+            throw thrown[0];
         return leaves;
     },
 
