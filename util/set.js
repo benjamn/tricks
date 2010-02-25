@@ -1,9 +1,8 @@
-// Ensure Object.prototype.hasOwnProperty.
-require("../lang/hasOwnProperty");
+var hasOwnProperty = require("../lang/hasOwnProperty").hasOwnProperty;
 
 function isTaggable(obj, tag) {
     var orig = obj[tag],
-        needToReplace = obj.hasOwnProperty(tag),
+        needToReplace = hasOwnProperty(obj, tag),
         temp = {};
     try {
         obj[tag] = temp;
@@ -11,15 +10,18 @@ function isTaggable(obj, tag) {
     } catch (x) {
         return false;
     } finally {
-        if (needToReplace)
-            obj[tag] = orig;
-        else delete obj[tag];
+        try {
+            if (needToReplace)
+                obj[tag] = orig;
+            else delete obj[tag];
+        } catch (wtfIE6) {}
     }
 }
 
 function TaggingSet() {
 
-    var tag = "<aegis/util/set " + Math.random() + ">",
+    var tag = ("<aegis/util/set " +
+               Math.random().toString(16).split(".").pop() + ">"),
         tagged = {};
 
     this.add = function(obj) {
@@ -66,7 +68,7 @@ function OneToStringSet() {
     };
 
     this.contains = function(elem) {
-        return elems.hasOwnProperty(elem);
+        return hasOwnProperty(elems, elem);
     };
 
     this.remove = function(elem) {

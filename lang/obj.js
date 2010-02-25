@@ -1,6 +1,5 @@
-require("./hasOwnProperty");
-
-var natives = ["toString",
+var hasOwnProperty = require("./hasOwnProperty").hasOwnProperty,
+    natives = ["toString",
                "valueOf",
                "constructor",
                "propertyIsEnumerable",
@@ -13,13 +12,13 @@ function keys(obj) {
         k, ks = [],
         n, i = 0;
     for (k in obj)
-        if (!seen.hasOwnProperty(k))
+        if (!hasOwnProperty(seen, k))
             seen[k] = obj[ks[ks.length] = k];
     while ((n = natives[i++]))
         // Not strictly correct when obj[n] === Object.prototype[n] and n
         // is defined in obj's prototype chain before Object.prototype.
         if (obj[n] !== seen[n] ||
-            obj.hasOwnProperty(n))
+            hasOwnProperty(obj, n))
             ks[ks.length] = n;
     return ks;
 }
