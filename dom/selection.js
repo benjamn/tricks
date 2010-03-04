@@ -91,7 +91,7 @@ var allSelections = new Set,
     reselect: function() {},
 
     toString: function() {
-        return [this.opening, this.closing].join(",");
+        return encodeURIComponent([this.opening, this.closing].join(","));
     }
 
 });
@@ -120,7 +120,7 @@ function endpoints(opening, closing) {
 }
     
 Selection.fromString = function(s) {
-    var splat = s.split(",");
+    var splat = decodeURIComponent(s).split(",");
     if (splat.length != 2)
         return null;
     return new (chooseSubclass())(endpoints(Location.fromString(splat[0]),

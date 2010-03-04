@@ -13,7 +13,7 @@ exports.toXPath = function(node) {
 
     while (node && node != document.body) {
         if (document.getElementById(node.id || "") === node) {
-            components[components.length] = "_" + node.id;
+            components[components.length] = "#" + node.id;
             break;
         }
 
@@ -47,7 +47,7 @@ exports.toNode = function(xpath) {
         node = document,
         match;
     while (node && (component = components.shift())) {
-        if ((match = /^_(.*)$/.exec(component)))
+        if ((match = /^#(.*)$/.exec(component)))
             node = document.getElementById(match[1]);
         else if ((match = /^(\w+)(?:\[(\d+)\])?$/.exec(component)))
             node = node.getElementsByTagName(match[1])[match[2] || 0];
