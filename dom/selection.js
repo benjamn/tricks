@@ -19,13 +19,15 @@ var allSelections = new Set,
     },
 
     leaves: function() {
-        var leaves = [];
-        // N.B., this.opening must not be cut before this.closing.
-        for (var last = this.closing.cut()[1],
-                 leaf = this.opening.cut()[1];
-             leaf && leaf !== last;
-             leaf = nextLeaf(leaf))
-            leaves.push(leaf);
+        var leaves = [],
+            // N.B., this.opening must not be cut before this.closing.
+            last = this.closing.cut()[1],
+            leaf = this.opening.cut()[1];
+        while (leaf && leaf !== last) {
+            if (!isTxt(leaf) || /\S/.test(leaf.nodeValue))
+                leaves.push(leaf);
+            leaf = nextLeaf(leaf);
+        }
         return leaves;
     },
 

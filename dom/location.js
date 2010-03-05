@@ -12,7 +12,8 @@ var Base = require("../lang/class").Base,
 
 function str_atom_count(str, right_strip) {
     if (right_strip)
-        str = str.replace(/\s*$/m, "");
+        str = str.replace(/\s+$/m, "");
+    str = str.replace(/^\s+/m, "");
     return str.replace(/\s+/gm, " ").length;
 }
 
