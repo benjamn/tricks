@@ -39,8 +39,8 @@ function leaves(node, until) {
 }
 exports.leaves = leaves; 
 
-exports.foreshadow = function(node) {
-    return leaves(node && node.parentNode,
+exports.foreshadow = function(node, ancestor) {
+    return leaves(node && (ancestor || node.parentNode),
                   firstLeaf(node));
 };
 
