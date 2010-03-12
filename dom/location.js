@@ -7,6 +7,7 @@ var Base = require("../lang/class").Base,
     fore = dom.foreshadow,
     first = dom.firstLeaf,
     isTxt = dom.isTextNode,
+    wsPres = dom.whiteSpacePreserved,
     infertile = dom.infertile,
     getStyle = dom.getStyle;
 
@@ -21,13 +22,13 @@ function leaf_atom_count(leaf, right_strip) {
     if (!isTxt(leaf))
         return infertile(leaf) ? 1 : 0;
     var text = leaf.nodeValue;
-    if (getStyle(leaf, "whiteSpace") == "pre")
+    if (wsPres(leaf))
         return text.length;
     return str_atom_count(text, right_strip);
 }
 
 function atom_offset_to_str_pos(leaf, offset) {
-    if (!isTxt(leaf) || getStyle(leaf, "whiteSpace") == "pre")
+    if (!isTxt(leaf) || wsPres(leaf))
         return offset;
     // The atom count is always an underestimate of the real position, so
     // this loop will terminate.

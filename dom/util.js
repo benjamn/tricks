@@ -76,6 +76,14 @@ function normalize(node, recursive) {
 }
 exports.normalize = normalize;
 
+exports.whiteSpacePreserved = function(node) {
+    if (isTextNode(node))
+        node = node.parentNode;
+    var wstyle = getStyle(node, "whiteSpace");
+    return (wstyle == "pre" ||
+            wstyle == "pre-wrap");
+};
+
 /* Returns
  *
  *     -1 iff succ precedes pred
