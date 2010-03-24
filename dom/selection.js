@@ -23,11 +23,8 @@ var allSelections = new Set,
             // N.B., this.opening must not be cut before this.closing.
             last = this.closing.cut()[1],
             leaf = this.opening.cut()[1];
-        while (leaf && leaf !== last) {
-            if (!isTxt(leaf) || /\S/.test(leaf.nodeValue))
-                leaves.push(leaf);
-            leaf = nextLeaf(leaf);
-        }
+        while (leaf && leaf !== last)
+            leaf = nextLeaf(leaves[leaves.length] = leaf);
         return leaves;
     },
 
@@ -85,7 +82,7 @@ var allSelections = new Set,
     },
 
     scrollTo: function(padding_opt) {
-        scroll(this.opening.ground().node,
+        scroll(this.opening.toLeafPos().leaf,
                padding_opt);
     },
 
@@ -115,10 +112,10 @@ function endpoints(opening, closing) {
         opening = closing;
         closing = temp;
     }
-    opening = opening.normalize(closing);
-    closing = closing.normalize(opening);
-    return { opening: opening.lift(wrapperTest),
-             closing: closing.lift(wrapperTest) };
+    //opening = opening.normalize(closing);
+    //closing = closing.normalize(opening);
+    return { opening: opening,
+             closing: closing };
 }
     
 Selection.fromString = function(s) {
@@ -153,9 +150,10 @@ W3CSelection.getCurrent = function() {
     if (range.isCollapsed)
         return null;
     var an = range.anchorNode, ao = range.anchorOffset,
-        fn = range.focusNode, fo = range.focusOffset;
-    return new W3CSelection(endpoints(Location.fromNodeOffset(an, ao),
-                                      Location.fromNodeOffset(fn, fo)));
+        aloc = Location.fromLeafPos(an, ao, wrapperTest),
+        fn = range.focusNode, fo = range.focusOffset,
+        floc = Location.fromLeafPos(fn, fo, wrapperTest);
+    return new W3CSelection(endpoints(aloc, floc));
 };
 
 var IESelection = Selection.derive({
@@ -171,7 +169,7 @@ IESelection.rangeToLoc = function(range) {
     range.pasteHTML("<span id='" + id + "'></span>");
     var span = document.getElementById(id),
         parent = range.parentElement(),
-        loc = Location.fromNodeOffset(span, 0).lift(function(node) {
+        loc = Location.fromLeafPos(span, 0, function(node) {
             return node === parent;
         });
     parent.removeChild(span);
