@@ -46,57 +46,57 @@ function roundToNextPosition(leaf, pos) {
     // function is probably a mistake, unless leafhood is ensured.
     return count_atoms(leaf, function(new_leaf, new_pos) {
         if (new_leaf !== leaf || new_pos >= pos)
-            throw { node: new_leaf, offset: new_pos };
+            throw { leaf: new_leaf, pos: new_pos };
     });
 }
     
 var Location = Base.derive({
 
-    toNodeOffset: function() {
+    toLeafPos: function() {
         var offset = this.offset;
         return count_atoms(this.node, function(leaf, pos) {
             if (offset <= 0)
-                // Becomes the return value of count_atoms.
-                throw { node: leaf, offset: pos };
+                // Caught and returned by count_atoms.
+                throw { leaf: leaf, pos: pos };
             offset--;
         });
     },
 
     cut: function() {
-        var no = this.toNodeOffset(),
-            node = no.node,
-            offset = no.offset;
+        var lp = this.toLeafPos(),
+            leaf = lp.leaf,
+            pos = lp.pos;
 
         // Avoid creating zero-length text nodes.
-        if (offset == 0)
-            return [prev(node), node];
+        if (pos == 0)
+            return [prev(leaf), leaf];
 
-        if (isTxt(node)) {
+        if (isTxt(leaf)) {
             // Avoid creating zero-length text nodes.
-            if (offset == node.nodeValue.length)
-                return [node, succ(node)];
+            if (pos == leaf.nodeValue.length)
+                return [leaf, succ(leaf)];
 
             // Note that this operation is destructive, so existing
             // node/offset pairs may be invalidated afterwards.
-            var text = node.nodeValue,
-                preText = text.slice(0, offset),
+            var text = leaf.nodeValue,
+                preText = text.slice(0, pos),
                 preNode = document.createTextNode(preText);
-            node.parentNode.insertBefore(preNode, node);
-            node.nodeValue = text.slice(offset);
-            return [preNode, node];
-        } else if (infertile(no.node))
+            leaf.parentNode.insertBefore(preNode, leaf);
+            leaf.nodeValue = text.slice(pos);
+            return [preNode, leaf];
+        } else if (infertile(leaf))
             // Assume offset == 1, by deduction.
-            return [no.node, succ(no.node)];
+            return [leaf, succ(leaf)];
 
         // This might be a lousy fallback, but I don't know any better.
-        return [no.node];
+        return [leaf];
     },
 
     compareTo: function(that) {
-        var gthis = this.ground(),
-            gthat = that.ground();
-        return (cmp(gthis.node, gthat.node) ||
-                gthat.offset - gthis.offset);
+        var this_lp = this.toLeafPos(),
+            that_lp = that.toLeafPos();
+        return (cmp(this_lp.leaf, that_lp.leaf) ||
+                that_lp.pos - this_lp.pos);
     },
 
     toString: function() {
@@ -118,13 +118,19 @@ function isNotTxt(node) {
     return !isTxt(node);
 }
 
-Location.fromNodeOffset = function(node, offset, test) {
+Location.fromLeafPos = function(leaf, pos, test) {
+    // Internet Explorer will sometimes give a range endpoint whose node
+    // is not a leaf, and whose offset is an index into the childNodes
+    // array.  Cope with that before proceeding.
+    while (leaf.firstChild) {
+        leaf = leaf.childNodes[pos];
+        pos = 0;
+    }
+
     // By default, use the first non-text parent node.
     test = test || isNotTxt;
 
-    var ancestor = node,
-        atom_offset = 0;
-
+    var ancestor = leaf;
     // Find a suitable reference node.
     while (ancestor &&
            ancestor.parentNode &&
@@ -133,15 +139,14 @@ Location.fromNodeOffset = function(node, offset, test) {
         ancestor = ancestor.parentNode;
 
     // Make sure we encounter the node/offset while iterating.
-    var rounded = roundToNextPosition(node, offset);
-    node = rounded.node;
-    offset = rounded.offset;
+    var rounded = roundToNextPosition(leaf, pos),
+        offset = 0; // Incremented once with every callback.
 
     // Iterate until we encounter the rounded node/offset.
     var tuple = count_atoms(ancestor, function(leaf, pos) {
-        if (leaf === node && pos >= offset)
-            throw { node: ancestor, offset: atom_offset };
-        atom_offset++;
+        if (leaf === rounded.leaf && pos >= rounded.pos)
+            throw { node: ancestor, offset: offset };
+        offset++;
     });
 
     // Make a Location out of that.
