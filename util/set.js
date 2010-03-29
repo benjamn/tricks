@@ -47,11 +47,15 @@ function TaggingSet() {
         return tagged[obj[tag]] === obj;
     };
 
+    var undefined;
     this.remove = function(obj) {
         if (!this.contains(obj))
             return false;
         delete tagged[obj[tag]];
-        delete obj[tag];
+        try {
+            obj[tag] = undefined;
+            delete obj[tag];
+        } catch (wtfIE6) {}
         return true;
     };
 
