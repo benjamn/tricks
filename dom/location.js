@@ -1,55 +1,82 @@
 var Base = require("../lang/class").Base,
     dom = require("./util"),
-    first = dom.firstLeaf,
     prev = dom.prevLeaf,
-    succ = dom.nextLeaf,
+    next = dom.nextLeaf,
     cmp = dom.compareNodes,
     isTxt = dom.isTextNode,
     wsPres = dom.whiteSpacePreserved,
     infertile = dom.infertile,
+    getStyle = dom.getStyle,
     xpath = require("./xpath");
 
-function count_atoms_loop(leaf, callback) {
-    var ignore_spaces = true;
-    for (leaf = first(leaf); leaf; leaf = succ(leaf))
+function isBlockDisplay(node) {
+    // TODO This function might be a big bottleneck.
+    return /block/i.test(getStyle(node, "display"));
+}
+
+// Returns the first leaf along the given node's fringe.
+// Sets ignore.spaces to true if any block-display parent is encountered
+// along the way.
+function firstIgnore(node, ignore) {
+    while (node && node.firstChild) {
+        if (ignore && isBlockDisplay(node))
+            ignore.spaces = true;
+        node = node.firstChild;
+    }
+    return node;
+}
+    
+// Returns the leaf subsequent to the given leaf.
+// Sets ignore.spaces to true if the given leaf was the last leaf along
+// the fringe of a block-display element.
+function nextIgnore(leaf, ignore) {
+    while (leaf && !leaf.nextSibling) {
+        leaf = leaf.parentNode;
+        if (leaf === document.body)
+            return null;
+        if (ignore && isBlockDisplay(leaf))
+            ignore.spaces = true;
+    }  
+    return leaf && firstIgnore(leaf.nextSibling, ignore);
+}
+
+function count_atoms_loop(node, callback, look_for) {
+    var ignore = { spaces: false },
+        leaf = firstIgnore(node, ignore),
+        seen; // Set to true when look_for encountered.
+    while (leaf) {
+        if (leaf === look_for)
+            seen = true;
         if (isTxt(leaf)) {
             var text = leaf.nodeValue,
                 pos = 0;
             if (wsPres(leaf)) {
                 while (pos <= text.length)
-                    callback(leaf, pos++);
-                ignore_spaces = false;
+                    callback(leaf, pos++, seen);
+                ignore.spaces = false;
             } else while (text)
                 text = text.replace(/^(\s+|\S)/m, function(_, atom) {
-                    if (!ignore_spaces || /^\S/.test(atom))
-                        callback(leaf, pos);
+                    if (!ignore.spaces || /^\S/.test(atom))
+                        callback(leaf, pos, seen);
                     pos += atom.length;
-                    ignore_spaces = /\s$/.test(atom);
+                    ignore.spaces = /\s$/.test(atom);
                     return "";
                 });
         } else if (infertile(leaf)) {
-            callback(leaf, 0);
-            callback(leaf, 1);
-            ignore_spaces = false;
+            callback(leaf, 0, seen);
+            callback(leaf, 1, seen);
+            // Infertile leaves can be display: block, e.g. <hr>.
+            ignore.spaces = isBlockDisplay(leaf);
         }
+        leaf = nextIgnore(leaf, ignore);
+    }
 }
 
-function count_atoms(leaf, callback) {
-    try { count_atoms_loop(leaf, callback) }
+function count_atoms(leaf, callback, look_for) {
+    try { count_atoms_loop(leaf, callback, look_for) }
     catch (x) { return x }
 }
 
-function roundToNextPosition(leaf, pos) {
-    leaf = first(leaf); // Potential source of bugs: if the first argument
-    // to count_atoms is not a leaf, then it will never be passed to the
-    // callback function, so referring to that value in the callback
-    // function is probably a mistake, unless leafhood is ensured.
-    return count_atoms(leaf, function(new_leaf, new_pos) {
-        if (new_leaf !== leaf || new_pos >= pos)
-            throw { leaf: new_leaf, pos: new_pos };
-    });
-}
-    
 var Location = Base.derive({
 
     toLeafPos: function() {
@@ -74,7 +101,7 @@ var Location = Base.derive({
         if (isTxt(leaf)) {
             // Avoid creating zero-length text nodes.
             if (pos == leaf.nodeValue.length)
-                return [leaf, succ(leaf)];
+                return [leaf, next(leaf)];
 
             // Note that this operation is destructive, so existing
             // node/offset pairs may be invalidated afterwards.
@@ -83,10 +110,11 @@ var Location = Base.derive({
                 preNode = document.createTextNode(preText);
             leaf.parentNode.insertBefore(preNode, leaf);
             leaf.nodeValue = text.slice(pos);
+
             return [preNode, leaf];
         } else if (infertile(leaf))
             // Assume offset == 1, by deduction.
-            return [leaf, succ(leaf)];
+            return [leaf, next(leaf)];
 
         // This might be a lousy fallback, but I don't know any better.
         return [leaf];
@@ -114,17 +142,11 @@ Location.fromString = function(s) {
     });
 };
 
-function isNotTxt(node) {
-    return !isTxt(node);
-}
-
 Location.fromLeafPos = function(leaf, pos, test) {
     var ancestor = leaf;
-    // Find a suitable reference node.
-    while (ancestor &&
-           ancestor.parentNode &&
-           ancestor != document.body &&
-           (isTxt(ancestor) || (test && !test(ancestor))))
+    if (isTxt(ancestor))
+        ancestor = ancestor.parentNode;
+    while (ancestor && !isBlockDisplay(ancestor))
         ancestor = ancestor.parentNode;
 
     // Internet Explorer will sometimes give a range endpoint whose node
@@ -135,20 +157,14 @@ Location.fromLeafPos = function(leaf, pos, test) {
         pos = 0;
     }
 
-    // Make sure we encounter the node/offset while iterating.
-    var rounded = roundToNextPosition(leaf, pos),
-        offset = 0; // Incremented once with every callback.
-
-    // Iterate until we encounter the rounded node/offset.
-    var tuple = count_atoms(ancestor, function(leaf, pos) {
-        if (leaf === rounded.leaf && pos >= rounded.pos)
+    var offset = 0;
+    return new Location(count_atoms(ancestor, function(l, p, seen) {
+        var same_leaf = l === leaf;
+        if ((same_leaf && p >= pos) ||
+            (!same_leaf && seen))
             throw { node: ancestor, offset: offset };
         offset++;
-    });
-
-    // Make a Location out of that.
-    return tuple && new Location(tuple);
+    }, leaf));
 };
 
-window.Location = Location;
 exports.Location = Location;
