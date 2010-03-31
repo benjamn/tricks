@@ -9,9 +9,9 @@ var Base = require("../lang/class").Base,
     getStyle = dom.getStyle,
     xpath = require("./xpath");
 
-function isBlockDisplay(node) {
+function startsOnNewLine(node) {
     // TODO This function might be a big bottleneck.
-    return /block/i.test(getStyle(node, "display"));
+    return /^(block|list-item)$/i.test(getStyle(node, "display"));
 }
 
 // Returns the first leaf along the given node's fringe.
@@ -19,7 +19,7 @@ function isBlockDisplay(node) {
 // along the way.
 function firstIgnore(node, ignore) {
     while (node && node.firstChild) {
-        if (ignore && isBlockDisplay(node))
+        if (ignore && startsOnNewLine(node))
             ignore.spaces = true;
         node = node.firstChild;
     }
@@ -34,7 +34,7 @@ function nextIgnore(leaf, ignore) {
         leaf = leaf.parentNode;
         if (leaf === document.body)
             return null;
-        if (ignore && isBlockDisplay(leaf))
+        if (ignore && startsOnNewLine(leaf))
             ignore.spaces = true;
     }  
     return leaf && firstIgnore(leaf.nextSibling, ignore);
@@ -66,7 +66,7 @@ function count_atoms_loop(node, callback, look_for) {
             callback(leaf, 0, seen);
             callback(leaf, 1, seen);
             // Infertile leaves can be display: block, e.g. <hr>.
-            ignore.spaces = isBlockDisplay(leaf);
+            ignore.spaces = startsOnNewLine(leaf);
         }
         leaf = nextIgnore(leaf, ignore);
     }
@@ -146,7 +146,7 @@ Location.fromLeafPos = function(leaf, pos, test) {
     var ancestor = leaf;
     if (isTxt(ancestor))
         ancestor = ancestor.parentNode;
-    while (ancestor && !isBlockDisplay(ancestor))
+    while (ancestor && !startsOnNewLine(ancestor))
         ancestor = ancestor.parentNode;
 
     // Internet Explorer will sometimes give a range endpoint whose node
