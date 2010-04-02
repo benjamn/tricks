@@ -52,7 +52,7 @@ exports.toNode = function(xpath) {
         match;
     while (node && (component = components.shift())) {
         if (component.indexOf(hash) == 0)
-            node = document.getElementById(decode(component));
+            node = document.getElementById(decode(component).slice(1));
         else if ((match = /^(\w+)(?:\[(\d+)\])?$/.exec(component)))
             node = node.getElementsByTagName(match[1])[match[2] || 0];
         else throw component;
