@@ -33,6 +33,11 @@ function testOneLocConv(str, n, path, offset) {
     this.assertEqual(leafPos.pos, back.pos);
 }
 
+var isIE = "\v" == "v";
+function ie(n) {
+    return isIE ? n : 0;
+}
+    
 exports.testLocationConversion = function() {
     testOneLocConv.call(this, "to be", 0, "#ancestor/li", 0);
     testOneLocConv.call(this, "to be", 1, "#ancestor/li[1]", 4);
@@ -43,5 +48,9 @@ exports.testLocationConversion = function() {
     testOneLocConv.call(this, "fdsa", 0, "#asdiv", 5);
     testOneLocConv.call(this, "dsfa", 0, "#asdiv", 10);
     testOneLocConv.call(this, "div, span", 0, "#lastdiv", 7);
-    testOneLocConv.call(this, "after div", 0, "body", 452);
+    testOneLocConv.call(this, "at the very top", 0, "body", 0 + ie(0));
+    testOneLocConv.call(this, "just below title", 0, "body", 43 + ie(0));
+    testOneLocConv.call(this, "before parent_div", 0, "body", 328 + ie(2));
+    testOneLocConv.call(this, "just before p", 0, "body", 396 + ie(2));
+    testOneLocConv.call(this, "outside div", 0, "body", 489 + ie(2));
 };
