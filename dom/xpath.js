@@ -7,13 +7,17 @@ var safeComponent = exports.safeComponent = function(node) {
             !/^(thead|tbody)$/i.test(node.nodeName));
 }
 
+var encode = encodeURIComponent,
+    decode = decodeURIComponent,
+    hash = encode("#");
+
 exports.toXPath = function(node) {
     var components = [],
         ancestor;
 
     while (node && node != document.body) {
         if (document.getElementById(node.id || "") === node) {
-            components[components.length] = "#" + node.id;
+            components[components.length] = encode("#" + node.id);
             break;
         }
 
@@ -47,8 +51,8 @@ exports.toNode = function(xpath) {
         node = document,
         match;
     while (node && (component = components.shift())) {
-        if ((match = /^#(.*)$/.exec(component)))
-            node = document.getElementById(match[1]);
+        if (component.indexOf(hash) == 0)
+            node = document.getElementById(decode(component));
         else if ((match = /^(\w+)(?:\[(\d+)\])?$/.exec(component)))
             node = node.getElementsByTagName(match[1])[match[2] || 0];
         else throw component;
