@@ -1,5 +1,7 @@
 var Base = require("../lang/class").Base,
     dom = require("./util"),
+    first = dom.firstLeaf,
+    last = dom.lastLeaf,
     prev = dom.prevLeaf,
     next = dom.nextLeaf,
     cmp = dom.compareNodes,
@@ -7,87 +9,14 @@ var Base = require("../lang/class").Base,
     wsPres = dom.whiteSpacePreserved,
     infertile = dom.infertile,
     getStyle = dom.getStyle,
-    xpath = require("./xpath");
-
-function startsOnNewLine(node) {
-    // TODO This function might be a big bottleneck.
-    return /^(block|list-item)$/i.test(getStyle(node, "display"));
-}
-
-// Returns the first leaf along the given node's fringe.
-// Sets ignore.spaces to true if any block-display parent is encountered
-// along the way.
-function firstIgnore(node, ignore) {
-    while (node && node.firstChild) {
-        if (ignore && startsOnNewLine(node))
-            ignore.spaces = true;
-        node = node.firstChild;
-    }
-    return node;
-}
-    
-// Returns the leaf subsequent to the given leaf.
-// Sets ignore.spaces to true if the given leaf was the last leaf along
-// the fringe of a block-display element.
-function nextIgnore(leaf, ignore) {
-    while (leaf && !leaf.nextSibling) {
-        leaf = leaf.parentNode;
-        if (leaf === document.body)
-            return null;
-        if (ignore && startsOnNewLine(leaf))
-            ignore.spaces = true;
-    }  
-    return leaf && firstIgnore(leaf.nextSibling, ignore);
-}
-
-function count_atoms_loop(node, callback, look_for) {
-    var ignore = { spaces: false },
-        leaf = firstIgnore(node, ignore),
-        seen; // Set to true when look_for encountered.
-    while (leaf) {
-        if (leaf === look_for)
-            seen = true;
-        if (isTxt(leaf)) {
-            var text = leaf.nodeValue,
-                pos = 0;
-            if (wsPres(leaf)) {
-                while (pos <= text.length)
-                    callback(leaf, pos++, seen);
-                ignore.spaces = false;
-            } else while (text)
-                text = text.replace(/^(\s+|\S)/m, function(_, atom) {
-                    if (!ignore.spaces || /^\S/.test(atom))
-                        callback(leaf, pos, seen);
-                    pos += atom.length;
-                    ignore.spaces = /\s$/.test(atom);
-                    return "";
-                });
-        } else if (infertile(leaf)) {
-            callback(leaf, 0, seen);
-            callback(leaf, 1, seen);
-            // Infertile leaves can be display: block, e.g. <hr>.
-            ignore.spaces = startsOnNewLine(leaf);
-        }
-        leaf = nextIgnore(leaf, ignore);
-    }
-}
-
-function count_atoms(leaf, callback, look_for) {
-    try { count_atoms_loop(leaf, callback, look_for) }
-    catch (x) { return x }
-}
+    xpath = require("./xpath"),
+    encode = encodeURIComponent,
+    decode = decodeURIComponent,
+    NCHARS = 10,
+    separator = ",",
+    wsExp = /\s+/gm;
 
 var Location = Base.derive({
-
-    toLeafPos: function() {
-        var offset = this.offset;
-        return count_atoms(this.node, function(leaf, pos) {
-            if (offset <= 0)
-                // Caught and returned by count_atoms.
-                throw { leaf: leaf, pos: pos };
-            offset--;
-        });
-    },
 
     cut: function() {
         var lp = this.toLeafPos(),
@@ -104,7 +33,7 @@ var Location = Base.derive({
                 return [leaf, next(leaf)];
 
             // Note that this operation is destructive, so existing
-            // node/offset pairs may be invalidated afterwards.
+            // leaf/pos pairs may be invalidated afterwards.
             var text = leaf.nodeValue,
                 preText = text.slice(0, pos),
                 preNode = document.createTextNode(preText);
@@ -125,30 +54,227 @@ var Location = Base.derive({
             that_lp = that.toLeafPos();
         return (cmp(this_lp.leaf, that_lp.leaf) ||
                 that_lp.pos - this_lp.pos);
-    },
-
-    toString: function() {
-        return [xpath.toXPath(this.node),
-                this.offset].join(":");
     }
 
 });
 
-Location.fromString = function(s) {
-    var splat = s.split(":");
-    return new Location({
+var shortNames = {};
+function shortenTo(shortName, cls) {
+    return shortNames[cls.shortName = shortName] = cls;
+}
+    
+var NodeOffsetLocation = shortenTo("NOL", Location.derive({
+
+    toLeafPos: function() {
+        return { leaf: node, pos: this.offset };
+    },
+
+    toString: function() {
+        return NodeOffsetLocation.shortName + "(" +
+            [xpath.toXPath(node),
+             this.offset].join(separator) + ")";
+    }
+
+}));
+
+NodeOffsetLocation.fromString = function(s) {
+    var splat = s.split(separator);
+    return new NodeOffsetLocation({
         node: xpath.toNode(splat[0]),
         offset: +splat[1]
     });
 };
 
-Location.fromLeafPos = function(leaf, pos, test) {
+NodeOffsetLocation.fromLeafPos = function(leaf, pos) {
+    if (isTxt(leaf) || !infertile(leaf))
+        return null;
+    return new NodeOffsetLocation({
+        node: leaf,
+        offset: pos
+    });
+};
+
+function startsAt(slug, leaf, pos) {
+    var text = leaf.nodeValue.slice(pos);
+    if (!text || /^\s/.test(text))
+        return false;
+    while (leaf) {
+        text = leaf.nodeValue.slice(pos).replace(wsExp, "");
+        if (slug.length <= text.length)
+            return text.indexOf(slug) == 0;
+        else if (slug.indexOf(text) != 0)
+            return false;
+        slug = slug.slice(text.length);
+        do leaf = next(leaf);
+        while (leaf && !isTxt(leaf));
+        pos = 0;
+    }
+    return false;
+}
+
+function endsAt(slug, leaf, pos) {
+    var text = leaf.nodeValue.slice(0, pos);
+    if (!text || /\s$/.test(text))
+        return false;
+    while (leaf) {
+        text = leaf.nodeValue.slice(0, pos).replace(wsExp, "");
+        if (slug.length <= text.length)
+            return text.indexOf(slug) + slug.length == text.length;
+        else if ((slug.indexOf(text) || slug.length) +
+                 text.length != slug.length)
+            return false;
+        slug = slug.slice(0, slug.length - text.length);
+        do leaf = prev(leaf);
+        while (leaf && !isTxt(leaf));
+        pos = leaf.nodeValue.length;
+    }
+    return false;
+}
+    
+var OrdinalSlugLocation = shortenTo("OSL", Location.derive({
+
+    toLeafPos: function() {
+        var ord = this.ordinal;
+        if (ord < 0) {
+            for (var leaf = last(this.node); leaf; leaf = prev(leaf)) {
+                if (!isTxt(leaf))
+                    continue;
+                for (var pos = leaf.nodeValue.length; pos >= 0; --pos)
+                    if (endsAt(this.slug, leaf, pos))
+                        return { leaf: leaf, pos: pos };
+            }
+        } else if (ord > 0) {
+            for (var leaf = first(this.node); leaf; leaf = next(leaf)) {
+                if (!isTxt(leaf))
+                    continue;
+                for (var pos = 0; pos <= leaf.nodeValue.length; ++pos)
+                    if (startsAt(this.slug, leaf, pos))
+                        return { leaf: leaf, pos: pos };
+            }
+        }
+    },
+
+    toString: function() {
+        return OrdinalSlugLocation.shortName + "(" +
+            [xpath.toXPath(this.node),
+             this.ordinal,
+             encode(this.slug)].join(separator) + ")";
+    }
+
+}));
+
+OrdinalSlugLocation.fromString = function(s) {
+    var splat = s.split(separator);
+    return new OrdinalSlugLocation({
+        node: xpath.toNode(splat[0]),
+        ordinal: +splat[1],
+        slug: decode(splat[2])
+    });
+};
+
+function getSlugForth(leaf, pos) {
+    var slug = "";
+    while (leaf) {
+        slug = slug + leaf.nodeValue.slice(pos).replace(wsExp, "");
+        if (slug.length >= NCHARS)
+            break;
+        do leaf = next(leaf);
+        while (leaf && !isTxt(leaf));
+        pos = 0;
+    }
+    return slug.slice(0, NCHARS);
+};
+
+function getSlugBack(leaf, pos) {
+    var slug = "";
+    while (leaf) {
+        slug = leaf.nodeValue.slice(0, pos).replace(wsExp, "") + slug;
+        if (slug.length >= NCHARS)
+            break;
+        do leaf = prev(leaf);
+        while (leaf && !isTxt(leaf));
+        pos = leaf.nodeValue.length;
+    }
+    return slug.slice(slug.length - NCHARS,
+                       slug.length);
+}
+    
+OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
+    if (!isTxt(leaf) || wsPres(leaf))
+        return null;
+    
     var ancestor = leaf;
     if (isTxt(ancestor))
         ancestor = ancestor.parentNode;
-    while (ancestor && !startsOnNewLine(ancestor))
+    while (ancestor && !/block/i.test(getStyle(ancestor, "display")))
         ancestor = ancestor.parentNode;
 
+    var info = { node: ancestor };
+    if (/^\s/.test(leaf.nodeValue.slice(pos))) {
+        info.slug = getSlugBack(leaf, pos);
+        info.ordinal = -1; // TODO
+    } else {
+        info.slug = getSlugForth(leaf, pos);
+        info.ordinal = 1; // TODO
+    }
+
+    return new OrdinalSlugLocation(info);
+};
+    
+var PreOffsetLocation = shortenTo("POL", Location.derive({
+
+    toLeafPos: function() {
+        var offset = this.preOffset;
+        for (var leaf = first(this.node); leaf; leaf = next(leaf)) {
+            if (!wsPres(leaf))
+                continue;
+            var text = leaf.nodeValue;
+            if (offset <= text.length)
+                return { leaf: leaf, pos: offset };
+            offset -= text.length;
+        }
+    },
+
+    toString: function() {
+        return PreOffsetLocation.shortName + "(" +
+            [xpath.toXPath(this.node),
+             this.preOffset].join(separator) + ")";
+    }
+
+}));
+
+PreOffsetLocation.fromString = function(s) {
+    var splat = s.split(separator);
+    return new PreOffsetLocation({
+        node: xpath.toNode(splat[0]),
+        preOffset: +splat[1]
+    });
+};
+
+PreOffsetLocation.fromLeafPos = function(leaf, pos) {
+    if (!isTxt(leaf) || !wsPres(leaf))
+        return null;
+    var ancestor = findReliableAncestor(leaf),
+        offset = 0;
+    for (var lf = first(ancestor); lf; lf = next(lf)) {
+        if (!wsPres(lf))
+            continue;
+        if (lf === leaf)
+            return new PreOffsetLocation({
+                node: ancestor,
+                preOffset: offset + pos
+            });
+        offset += leaf.nodeValue.length;
+    }
+};
+
+Location.fromString = function(s) {
+    var match = /^([A-Z]+)\((.*)\)$/.exec(s);
+    return (match.length == 3 &&
+            shortNames[match[1]].fromString(match[2]));
+};
+
+Location.fromLeafPos = function(leaf, pos) {
     // Internet Explorer will sometimes give a range endpoint whose node
     // is not a leaf, and whose offset is an index into the childNodes
     // array.  Cope with that before proceeding.
@@ -156,15 +282,10 @@ Location.fromLeafPos = function(leaf, pos, test) {
         leaf = leaf.childNodes[pos];
         pos = 0;
     }
-
-    var offset = 0;
-    return new Location(count_atoms(ancestor, function(l, p, seen) {
-        var same_leaf = l === leaf;
-        if ((same_leaf && p >= pos) ||
-            (!same_leaf && seen))
-            throw { node: ancestor, offset: offset };
-        offset++;
-    }, leaf));
+    return (NodeOffsetLocation.fromLeafPos(leaf, pos) ||
+            OrdinalSlugLocation.fromLeafPos(leaf, pos) ||
+            PreOffsetLocation.fromLeafPos(leaf, pos));
 };
 
+window.Location = Location;
 exports.Location = Location;
