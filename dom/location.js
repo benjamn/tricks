@@ -94,6 +94,16 @@ NodeOffsetLocation.fromLeafPos = function(leaf, pos) {
     });
 };
 
+function iterTextNodes(node, callback, back) {
+    var leaf = back ? last(node) : first(node),
+        succ = back ? prev : next, rv;
+    while (leaf) {
+        if (isTxt(leaf) && (rv = callback(leaf)))
+            return rv;
+        leaf = succ(leaf);
+    }
+}
+
 function startsAt(slug, leaf, pos) {
     var text = leaf.nodeValue.slice(pos);
     if (!text || /^\s/.test(text))
@@ -130,28 +140,33 @@ function endsAt(slug, leaf, pos) {
     }
     return false;
 }
-    
+
+function findReliableAncestor(ancestor) {
+    if (isTxt(ancestor))
+        ancestor = ancestor.parentNode;
+    while (ancestor && !/block/i.test(getStyle(ancestor, "display")))
+        ancestor = ancestor.parentNode;
+    return ancestor;
+}
+
 var OrdinalSlugLocation = shortenTo("OSL", Location.derive({
 
     toLeafPos: function() {
-        var ord = this.ordinal;
-        if (ord < 0) {
-            for (var leaf = last(this.node); leaf; leaf = prev(leaf)) {
-                if (!isTxt(leaf))
-                    continue;
-                for (var pos = leaf.nodeValue.length; pos >= 0; --pos)
-                    if (endsAt(this.slug, leaf, pos))
-                        return { leaf: leaf, pos: pos };
-            }
-        } else if (ord > 0) {
-            for (var leaf = first(this.node); leaf; leaf = next(leaf)) {
-                if (!isTxt(leaf))
-                    continue;
-                for (var pos = 0; pos <= leaf.nodeValue.length; ++pos)
-                    if (startsAt(this.slug, leaf, pos))
-                        return { leaf: leaf, pos: pos };
-            }
-        }
+        var slug = this.slug,
+            ord = this.ordinal;
+        if (ord < 0)
+            return iterTextNodes(this.node, function(tn) {
+                for (var pos = tn.nodeValue.length; pos >= 0; --pos)
+                    if (endsAt(slug, tn, pos) && ++ord == 0)
+                        return { leaf: tn, pos: pos };
+            }, true);
+        else if (ord > 0)
+            return iterTextNodes(this.node, function(tn) {
+                var text = tn.nodeValue;
+                for (var pos = 0; pos <= text.length; ++pos)
+                    if (startsAt(slug, tn, pos) && --ord == 0)
+                        return { leaf: tn, pos: pos };
+            });
     },
 
     toString: function() {
@@ -174,48 +189,58 @@ OrdinalSlugLocation.fromString = function(s) {
 
 function getSlugForth(leaf, pos) {
     var slug = "";
-    while (leaf) {
-        slug = slug + leaf.nodeValue.slice(pos).replace(wsExp, "");
+    iterTextNodes(leaf, function(tn) {
+        slug = slug + tn.nodeValue.slice(pos).replace(wsExp, "");
         if (slug.length >= NCHARS)
-            break;
-        do leaf = next(leaf);
-        while (leaf && !isTxt(leaf));
+            return true;
         pos = 0;
-    }
+    });
     return slug.slice(0, NCHARS);
 };
 
 function getSlugBack(leaf, pos) {
-    var slug = "";
-    while (leaf) {
-        slug = leaf.nodeValue.slice(0, pos).replace(wsExp, "") + slug;
-        if (slug.length >= NCHARS)
-            break;
-        do leaf = prev(leaf);
-        while (leaf && !isTxt(leaf));
-        pos = leaf.nodeValue.length;
-    }
+    var slug = "", once;
+    iterTextNodes(leaf, function(tn) {
+        slug = (once ? tn.nodeValue
+                     : tn.nodeValue.slice(0, pos)
+               ).replace(wsExp, "") + slug;
+        once = true;
+        return slug.length >= NCHARS;
+    }, true);
     return slug.slice(slug.length - NCHARS,
-                       slug.length);
+                      slug.length);
 }
     
 OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || wsPres(leaf))
         return null;
-    
-    var ancestor = leaf;
-    if (isTxt(ancestor))
-        ancestor = ancestor.parentNode;
-    while (ancestor && !/block/i.test(getStyle(ancestor, "display")))
-        ancestor = ancestor.parentNode;
 
-    var info = { node: ancestor };
+    var info = {
+        node: findReliableAncestor(leaf),
+        ordinal: 0
+    };
+
     if (/^\s/.test(leaf.nodeValue.slice(pos))) {
         info.slug = getSlugBack(leaf, pos);
-        info.ordinal = -1; // TODO
+        iterTextNodes(info.node, function(tn) {
+            for (var i = tn.nodeValue.length; i >= 0; --i) {
+                if (endsAt(info.slug, tn, i))
+                    info.ordinal--;
+                if (tn === leaf && i <= pos)
+                    return true;
+            }
+        }, true);
     } else {
         info.slug = getSlugForth(leaf, pos);
-        info.ordinal = 1; // TODO
+        iterTextNodes(info.node, function(tn) {
+            var text = tn.nodeValue;
+            for (var i = 0; i <= text.length; ++i) {
+                if (startsAt(info.slug, tn, i))
+                    info.ordinal++;
+                if (tn === leaf && i >= pos)
+                    return true;
+            }
+        });
     }
 
     return new OrdinalSlugLocation(info);
@@ -225,14 +250,14 @@ var PreOffsetLocation = shortenTo("POL", Location.derive({
 
     toLeafPos: function() {
         var offset = this.preOffset;
-        for (var leaf = first(this.node); leaf; leaf = next(leaf)) {
-            if (!wsPres(leaf))
-                continue;
-            var text = leaf.nodeValue;
-            if (offset <= text.length)
-                return { leaf: leaf, pos: offset };
-            offset -= text.length;
-        }
+        return iterTextNodes(this.node, function(tn) {
+            if (wsPres(tn)) {
+                var len = tn.nodeValue.length;
+                if (offset <= len)
+                    return { leaf: tn, pos: offset };
+                offset -= len;
+            }
+        });
     },
 
     toString: function() {
@@ -254,18 +279,17 @@ PreOffsetLocation.fromString = function(s) {
 PreOffsetLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || !wsPres(leaf))
         return null;
-    var ancestor = findReliableAncestor(leaf),
-        offset = 0;
-    for (var lf = first(ancestor); lf; lf = next(lf)) {
-        if (!wsPres(lf))
-            continue;
-        if (lf === leaf)
-            return new PreOffsetLocation({
-                node: ancestor,
-                preOffset: offset + pos
-            });
-        offset += leaf.nodeValue.length;
-    }
+    var info = {
+        node: findReliableAncestor(leaf),
+        offset: pos
+    };
+    return iterTextNodes(info.node, function(tn) {
+        if (wsPres(tn)) {
+            if (tn === leaf)
+                return new PreOffsetLocation(info);
+            info.offset += tn.nodeValue.length;
+        }
+    });
 };
 
 Location.fromString = function(s) {
