@@ -145,6 +145,7 @@ function endsAt(slug, leaf, pos) {
         while (leaf && !isTxt(leaf));
         text = leaf && leaf.nodeValue;
     }
+    return false;
 }
 
 function findReliableAncestor(ancestor) {
