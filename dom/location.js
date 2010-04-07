@@ -6,15 +6,15 @@ var Base = require("../lang/class").Base,
     next = dom.nextLeaf,
     cmp = dom.compareNodes,
     isTxt = dom.isTextNode,
-    wsPres = dom.whiteSpacePreserved,
     infertile = dom.infertile,
     getStyle = dom.getStyle,
+    wsPres = dom.whiteSpacePreserved,
+    wsExp = /\s+/gm,
     xpath = require("./xpath"),
     encode = encodeURIComponent,
     decode = decodeURIComponent,
     NCHARS = 10,
-    separator = ",",
-    wsExp = /\s+/gm;
+    separator = ",";
 
 var Location = Base.derive({
 
@@ -109,36 +109,42 @@ function startsAt(slug, leaf, pos) {
     if (!text || /^\s/.test(text))
         return false;
     while (leaf) {
-        text = leaf.nodeValue.slice(pos).replace(wsExp, "");
-        if (slug.length <= text.length)
-            return text.indexOf(slug) == 0;
-        else if (slug.indexOf(text) != 0)
-            return false;
-        slug = slug.slice(text.length);
+        text = text.replace(wsExp, "");
+        for (var tlen = text.length,
+                 slen = slug.length,
+                 i = 0; i < tlen && i < slen; ++i)
+            if (text.charAt(i) !=
+                slug.charAt(i))
+                return false;
+        if (i == slen)
+            return true;
+        slug = slug.slice(tlen);
         do leaf = next(leaf);
         while (leaf && !isTxt(leaf));
-        pos = 0;
+        text = leaf && leaf.nodeValue;
     }
     return false;
 }
-
+    
 function endsAt(slug, leaf, pos) {
     var text = leaf.nodeValue.slice(0, pos);
     if (!text || /\s$/.test(text))
         return false;
     while (leaf) {
-        text = leaf.nodeValue.slice(0, pos).replace(wsExp, "");
-        if (slug.length <= text.length)
-            return text.indexOf(slug) + slug.length == text.length;
-        else if ((slug.indexOf(text) || slug.length) +
-                 text.length != slug.length)
-            return false;
-        slug = slug.slice(0, slug.length - text.length);
+        text = text.replace(wsExp, "");
+        for (var tlen = text.length,
+                 slen = slug.length,
+                 i = 0; i < tlen && i < slen; ++i)
+            if (text.charAt(tlen - i - 1) !=
+                slug.charAt(slen - i - 1))
+                return false;
+        if (i == slen)
+            return true;
+        slug = slug.slice(0, slen - tlen);
         do leaf = prev(leaf);
         while (leaf && !isTxt(leaf));
-        pos = leaf.nodeValue.length;
+        text = leaf && leaf.nodeValue;
     }
-    return false;
 }
 
 function findReliableAncestor(ancestor) {
@@ -154,19 +160,23 @@ var OrdinalSlugLocation = shortenTo("OSL", Location.derive({
     toLeafPos: function() {
         var slug = this.slug,
             ord = this.ordinal;
+
         if (ord < 0)
             return iterTextNodes(this.node, function(tn) {
                 for (var pos = tn.nodeValue.length; pos >= 0; --pos)
                     if (endsAt(slug, tn, pos) && ++ord == 0)
                         return { leaf: tn, pos: pos };
             }, true);
-        else if (ord > 0)
+
+        if (ord > 0)
             return iterTextNodes(this.node, function(tn) {
                 var text = tn.nodeValue;
                 for (var pos = 0; pos <= text.length; ++pos)
                     if (startsAt(slug, tn, pos) && --ord == 0)
                         return { leaf: tn, pos: pos };
             });
+
+        return null;
     },
 
     toString: function() {
@@ -187,63 +197,69 @@ OrdinalSlugLocation.fromString = function(s) {
     });
 };
 
-function getSlugForth(leaf, pos) {
-    var slug = "";
-    iterTextNodes(leaf, function(tn) {
-        slug = slug + tn.nodeValue.slice(pos).replace(wsExp, "");
-        if (slug.length >= NCHARS)
-            return true;
-        pos = 0;
-    });
-    return slug.slice(0, NCHARS);
-};
-
-function getSlugBack(leaf, pos) {
-    var slug = "", once;
-    iterTextNodes(leaf, function(tn) {
-        slug = (once ? tn.nodeValue
-                     : tn.nodeValue.slice(0, pos)
-               ).replace(wsExp, "") + slug;
-        once = true;
-        return slug.length >= NCHARS;
-    }, true);
-    return slug.slice(slug.length - NCHARS,
-                      slug.length);
-}
-    
 OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || wsPres(leaf))
         return null;
 
-    var info = {
-        node: findReliableAncestor(leaf),
-        ordinal: 0
-    };
+    var ancestor = findReliableAncestor(leaf),
+        slug = "",
+        ordinal = 0;
 
     if (/^\s/.test(leaf.nodeValue.slice(pos))) {
-        info.slug = getSlugBack(leaf, pos);
-        iterTextNodes(info.node, function(tn) {
+        // Collect the NCHARS or more non-space characters ending at
+        // leaf/pos.
+        iterTextNodes(leaf, function(tn) {
+            slug = (tn === leaf ? tn.nodeValue.slice(0, pos)
+                                : tn.nodeValue
+                   ).replace(wsExp, "") + slug;
+            return slug.length >= NCHARS;
+        }, true);
+
+        // Trim slug length to just NCHARS.
+        slug = slug.slice(slug.length - NCHARS,
+                          slug.length);
+
+        // Decrement ordinal by the number of occurrences of this slug up
+        // to and including the one ending at leaf/pos.
+        iterTextNodes(ancestor, function(tn) {
             for (var i = tn.nodeValue.length; i >= 0; --i) {
-                if (endsAt(info.slug, tn, i))
-                    info.ordinal--;
+                if (endsAt(slug, tn, i))
+                    ordinal--;
                 if (tn === leaf && i <= pos)
                     return true;
             }
         }, true);
     } else {
-        info.slug = getSlugForth(leaf, pos);
-        iterTextNodes(info.node, function(tn) {
+        // Collect the NCHARS or more non-space characters starting at
+        // leaf/pos.
+        iterTextNodes(leaf, function(tn) {
+            slug = slug + (tn === leaf ? tn.nodeValue.slice(pos)
+                                       : tn.nodeValue
+                          ).replace(wsExp, "");
+            return slug.length >= NCHARS;
+        });
+
+        // Trim slug length to just NCHARS.
+        slug = slug.slice(0, NCHARS);
+
+        // Increment ordinal by the number of occurrences of this slug up
+        // to and including the one starting at leaf/pos.
+        iterTextNodes(ancestor, function(tn) {
             var text = tn.nodeValue;
             for (var i = 0; i <= text.length; ++i) {
-                if (startsAt(info.slug, tn, i))
-                    info.ordinal++;
+                if (startsAt(slug, tn, i))
+                    ordinal++;
                 if (tn === leaf && i >= pos)
                     return true;
             }
         });
     }
 
-    return new OrdinalSlugLocation(info);
+    return new OrdinalSlugLocation({
+        node: ancestor,
+        ordinal: ordinal,
+        slug: slug
+    });
 };
     
 var PreOffsetLocation = shortenTo("POL", Location.derive({
