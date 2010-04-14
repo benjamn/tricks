@@ -44,6 +44,49 @@ exports.foreshadow = function(node, ancestor) {
                   firstLeaf(node));
 };
 
+function findAncestor(node, test) {
+    while (node && !test(node))
+        if (node === document.body)
+            return null;
+        else
+            node = node.parentNode;
+    return node;
+};
+exports.findAncestor = findAncestor;
+
+function isBlockDisplay(node) {
+    return !isTextNode(node) && /block/i.test(getStyle(node, "display"));
+};
+exports.isBlockDisplay = isBlockDisplay;
+
+exports.shadowPointFromBegin = function(node) {
+    for (var ancestor = findAncestor(node, isBlockDisplay),
+             leaf = firstLeaf(ancestor),
+             limit = nextLeaf(lastLeaf(ancestor));
+         leaf && leaf != limit;
+         leaf = nextLeaf(leaf)) {
+        if (!isTextNode(leaf) || whiteSpacePreserved(leaf))
+            return { leaf: leaf, pos: 0 };
+        var text = leaf.nodeValue;
+        if (/\S/.test(text))
+            return { leaf: leaf, pos: /^\s*/.exec(text)[0].length };
+    }
+};
+
+exports.shadowPointFromEnd = function(node) {
+    for (var ancestor = findAncestor(node, isBlockDisplay),
+             leaf = lastLeaf(ancestor),
+             limit = prevLeaf(firstLeaf(ancestor));
+         leaf && leaf != limit;
+         leaf = prevLeaf(leaf)) {
+        if (!isTextNode(leaf) || whiteSpacePreserved(leaf))
+            return { leaf: leaf, pos: 0 };
+        var text = leaf.nodeValue;
+        if (/\S/.test(text))
+            return { leaf: leaf, pos: /\s*$/.exec(text).index };
+    }
+};
+
 function ancestors(node, inclusive) {
     var rv = [];
     if (inclusive)
@@ -76,13 +119,14 @@ function normalize(node, recursive) {
 }
 exports.normalize = normalize;
 
-exports.whiteSpacePreserved = function(node) {
+function whiteSpacePreserved(node) {
     if (isTextNode(node))
         node = node.parentNode;
     var wstyle = getStyle(node, "whiteSpace");
     return (wstyle == "pre" ||
             wstyle == "pre-wrap");
 };
+exports.whiteSpacePreserved = whiteSpacePreserved;
 
 /* Returns
  *
