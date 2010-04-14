@@ -6,7 +6,8 @@ var Base = require("../lang/class").Base,
     isTxt = dom.isTextNode,
     nextLeaf = dom.nextLeaf,
     canParent = dom.canParent,
-    scroll = dom.scrollToY;
+    scroll = dom.scrollToY,
+    separator = ",";
 
 var allSelections = new Set,
     allWrappers = new Set,
@@ -90,7 +91,8 @@ var allSelections = new Set,
     reselect: function() {},
 
     toString: function() {
-        return [this.opening, this.closing].join(",");
+        return "SEL(" + [this.opening,
+                         this.closing].join(",") + ")";
     }
 
 });
@@ -119,11 +121,12 @@ function endpoints(opening, closing) {
 }
     
 Selection.fromString = function(s) {
-    var splat = s.split(",");
-    if (splat.length != 2)
+    // TODO!
+    var match = /^SEL\(([A-Z]+\(.*?\)),([A-Z]+\(.*?\))\)$/.exec(s);
+    if (match.length != 3)
         return null;
-    return new (chooseSubclass())(endpoints(Location.fromString(splat[0]),
-                                            Location.fromString(splat[1])));
+    return new (chooseSubclass())(endpoints(Location.fromString(match[1]),
+                                            Location.fromString(match[2])));
 };
     
 var W3CSelection = Selection.derive({
@@ -150,10 +153,9 @@ W3CSelection.getCurrent = function() {
     if (range.isCollapsed)
         return null;
     var an = range.anchorNode, ao = range.anchorOffset,
-        aloc = Location.fromLeafPos(an, ao, wrapperTest),
-        fn = range.focusNode, fo = range.focusOffset,
-        floc = Location.fromLeafPos(fn, fo, wrapperTest);
-    return new W3CSelection(endpoints(aloc, floc));
+        fn = range.focusNode, fo = range.focusOffset;
+    return new W3CSelection(endpoints(Location.fromLeafPos(an, ao),
+                                      Location.fromLeafPos(fn, fo)));
 };
 
 var IESelection = Selection.derive({

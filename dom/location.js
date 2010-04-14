@@ -9,12 +9,19 @@ var Base = require("../lang/class").Base,
     infertile = dom.infertile,
     getStyle = dom.getStyle,
     wsPres = dom.whiteSpacePreserved,
+    findAncestor = dom.findAncestor,
+    shadowPtEnd = dom.shadowPointFromEnd,
+    isBlock = dom.isBlockDisplay,
     wsExp = /\s+/gm,
     xpath = require("./xpath"),
     encode = encodeURIComponent,
     decode = decodeURIComponent,
     NCHARS = 10,
     separator = ",";
+
+function order(leaf1, pos1, leaf2, pos2) {
+    return cmp(leaf1, leaf2) || (pos2 - pos1);
+}
 
 var Location = Base.derive({
 
@@ -52,8 +59,8 @@ var Location = Base.derive({
     compareTo: function(that) {
         var this_lp = this.toLeafPos(),
             that_lp = that.toLeafPos();
-        return (cmp(this_lp.leaf, that_lp.leaf) ||
-                that_lp.pos - this_lp.pos);
+        return order(this_lp.leaf, this_lp.pos,
+                     that_lp.leaf, that_lp.pos);
     }
 
 });
@@ -62,7 +69,7 @@ var shortNames = {};
 function shortenTo(shortName, cls) {
     return shortNames[cls.shortName = shortName] = cls;
 }
-    
+
 var NodeOffsetLocation = shortenTo("NOL", Location.derive({
 
     toLeafPos: function() {
@@ -125,7 +132,7 @@ function startsAt(slug, leaf, pos) {
     }
     return false;
 }
-    
+
 function endsAt(slug, leaf, pos) {
     var text = leaf.nodeValue.slice(0, pos);
     if (!text || /\s$/.test(text))
@@ -146,14 +153,6 @@ function endsAt(slug, leaf, pos) {
         text = leaf && leaf.nodeValue;
     }
     return false;
-}
-
-function findReliableAncestor(ancestor) {
-    if (isTxt(ancestor))
-        ancestor = ancestor.parentNode;
-    while (ancestor && !/block/i.test(getStyle(ancestor, "display")))
-        ancestor = ancestor.parentNode;
-    return ancestor;
 }
 
 var OrdinalSlugLocation = shortenTo("OSL", Location.derive({
@@ -201,12 +200,12 @@ OrdinalSlugLocation.fromString = function(s) {
 OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || wsPres(leaf))
         return null;
-
-    var ancestor = findReliableAncestor(leaf),
+    
+    var ancestor = findAncestor(leaf, isBlock),
         slug = "",
         ordinal = 0;
 
-    if (/^\s/.test(leaf.nodeValue.slice(pos))) {
+    if (affinity(leaf, pos) < 0) {
         // Collect the NCHARS or more non-space characters ending at
         // leaf/pos.
         iterTextNodes(leaf, function(tn) {
@@ -315,6 +314,73 @@ Location.fromString = function(s) {
             shortNames[match[1]].fromString(match[2]));
 };
 
+function affinity(leaf, pos) {
+    var text = leaf.nodeValue,
+        preText = text.slice(0, pos),
+        postText = text.slice(pos);
+
+    if (/^\S/.test(postText))
+        return 1;
+    
+    if (/\S$/.test(preText))
+        return -1;
+
+    if (preText && !/\S/.test(preText))
+        return 1;
+
+    if (postText && !/\S/.test(postText))
+        return -1;
+
+    return 1;
+}
+
+function skipForward(leaf, pos, limit) {
+    if (!leaf || leaf == limit || !isTxt(leaf) || wsPres(leaf))
+        return null;
+
+    var current = { leaf: leaf, pos: pos },
+        text = leaf.nodeValue,
+        preText = text.slice(0, pos),
+        postText = text.slice(pos);
+
+    if (/^\S/.test(postText))
+        return current;
+    if (/\S$/.test(preText))
+        return current;
+
+    if (!postText)
+        return skipForward(next(leaf), 0, limit) || current;
+
+    pos += /^\s*/.exec(postText)[0].length;
+    return skipForward(leaf, pos, limit) || current;
+}
+
+function len(leaf) {
+    if (isTxt(leaf))
+        return leaf.nodeValue.length;
+    if (infertile(leaf))
+        return 1;
+    return 0;
+}
+
+function adjustToBoundary(leaf, pos) {
+    var pl;
+    while (!pos && (pl = prev(leaf)))
+        pos = len(leaf = pl);
+
+    var sp = shadowPtEnd(leaf);
+    if (order(leaf, pos, sp.leaf, sp.pos) < 0) {
+        leaf = sp.leaf;
+        pos = sp.pos;
+    }
+
+    var limit = next(last(findAncestor(leaf, isBlock)));
+    return skipForward(leaf, pos, limit) || {
+        leaf: leaf,
+        pos: pos
+    };
+}
+
 Location.fromLeafPos = function(leaf, pos) {
     // Internet Explorer will sometimes give a range endpoint whose node
     // is not a leaf, and whose offset is an index into the childNodes
@@ -323,6 +389,11 @@ Location.fromLeafPos = function(leaf, pos) {
         leaf = leaf.childNodes[pos];
         pos = 0;
     }
+
+    var adjusted = adjustToBoundary(leaf, pos);
+    leaf = adjusted.leaf;
+    pos = adjusted.pos;
+
     return (NodeOffsetLocation.fromLeafPos(leaf, pos) ||
             OrdinalSlugLocation.fromLeafPos(leaf, pos) ||
             PreOffsetLocation.fromLeafPos(leaf, pos));
