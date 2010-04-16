@@ -79,9 +79,11 @@ exports.shadowPointFromEnd = function(node) {
              limit = prevLeaf(firstLeaf(ancestor));
          leaf && leaf != limit;
          leaf = prevLeaf(leaf)) {
-        if (!isTextNode(leaf) || whiteSpacePreserved(leaf))
-            return { leaf: leaf, pos: 0 };
+        if (!isTextNode(leaf))
+            return { leaf: leaf, pos: 1 };
         var text = leaf.nodeValue;
+        if (whiteSpacePreserved(leaf))
+            return { leaf: leaf, pos: text.length };
         if (/\S/.test(text))
             return { leaf: leaf, pos: /\s*$/.exec(text).index };
     }
