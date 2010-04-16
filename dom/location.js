@@ -265,7 +265,7 @@ OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
 var PreOffsetLocation = shortenTo("POL", Location.derive({
 
     toLeafPos: function() {
-        var offset = this.preOffset;
+        var offset = this.offset;
         return iterTextNodes(this.node, function(tn) {
             if (wsPres(tn)) {
                 var len = tn.nodeValue.length;
@@ -279,7 +279,7 @@ var PreOffsetLocation = shortenTo("POL", Location.derive({
     toString: function() {
         return PreOffsetLocation.shortName + "(" +
             [xpath.toXPath(this.node),
-             this.preOffset].join(separator) + ")";
+             this.offset].join(separator) + ")";
     }
 
 }));
@@ -288,7 +288,7 @@ PreOffsetLocation.fromString = function(s) {
     var splat = s.split(separator);
     return new PreOffsetLocation({
         node: xpath.toNode(splat[0]),
-        preOffset: +splat[1]
+        offset: +splat[1]
     });
 };
 
@@ -296,7 +296,7 @@ PreOffsetLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || !wsPres(leaf))
         return null;
     var info = {
-        node: findReliableAncestor(leaf),
+        node: findAncestor(leaf, isBlock),
         offset: pos
     };
     return iterTextNodes(info.node, function(tn) {
