@@ -6,7 +6,8 @@ var Base = require("../lang/class").Base,
     isTxt = dom.isTextNode,
     nextLeaf = dom.nextLeaf,
     canParent = dom.canParent,
-    scroll = dom.scrollToY;
+    scroll = dom.scrollToY,
+    separator = ",";
 
 var allSelections = new Set,
     allWrappers = new Set,
@@ -23,11 +24,8 @@ var allSelections = new Set,
             // N.B., this.opening must not be cut before this.closing.
             last = this.closing.cut()[1],
             leaf = this.opening.cut()[1];
-        while (leaf && leaf !== last) {
-            if (!isTxt(leaf) || /\S/.test(leaf.nodeValue))
-                leaves.push(leaf);
-            leaf = nextLeaf(leaf);
-        }
+        while (leaf && leaf !== last)
+            leaf = nextLeaf(leaves[leaves.length] = leaf);
         return leaves;
     },
 
@@ -85,7 +83,7 @@ var allSelections = new Set,
     },
 
     scrollTo: function(padding_opt) {
-        scroll(this.opening.ground().node,
+        scroll(this.opening.toLeafPos().leaf,
                padding_opt);
     },
 
@@ -93,7 +91,8 @@ var allSelections = new Set,
     reselect: function() {},
 
     toString: function() {
-        return [this.opening, this.closing].join(",");
+        return "SEL(" + [this.opening,
+                         this.closing].join(",") + ")";
     }
 
 });
@@ -115,18 +114,19 @@ function endpoints(opening, closing) {
         opening = closing;
         closing = temp;
     }
-    opening = opening.normalize(closing);
-    closing = closing.normalize(opening);
-    return { opening: opening.lift(wrapperTest),
-             closing: closing.lift(wrapperTest) };
+    //opening = opening.normalize(closing);
+    //closing = closing.normalize(opening);
+    return { opening: opening,
+             closing: closing };
 }
     
 Selection.fromString = function(s) {
-    var splat = s.split(",");
-    if (splat.length != 2)
+    // TODO!
+    var match = /^SEL\(([A-Z]+\(.*?\)),([A-Z]+\(.*?\))\)$/.exec(s);
+    if (match.length != 3)
         return null;
-    return new (chooseSubclass())(endpoints(Location.fromString(splat[0]),
-                                            Location.fromString(splat[1])));
+    return new (chooseSubclass())(endpoints(Location.fromString(match[1]),
+                                            Location.fromString(match[2])));
 };
     
 var W3CSelection = Selection.derive({
@@ -154,8 +154,8 @@ W3CSelection.getCurrent = function() {
         return null;
     var an = range.anchorNode, ao = range.anchorOffset,
         fn = range.focusNode, fo = range.focusOffset;
-    return new W3CSelection(endpoints(Location.fromNodeOffset(an, ao),
-                                      Location.fromNodeOffset(fn, fo)));
+    return new W3CSelection(endpoints(Location.fromLeafPos(an, ao),
+                                      Location.fromLeafPos(fn, fo)));
 };
 
 var IESelection = Selection.derive({
@@ -171,7 +171,7 @@ IESelection.rangeToLoc = function(range) {
     range.pasteHTML("<span id='" + id + "'></span>");
     var span = document.getElementById(id),
         parent = range.parentElement(),
-        loc = Location.fromNodeOffset(span, 0).lift(function(node) {
+        loc = Location.fromLeafPos(span, 0, function(node) {
             return node === parent;
         });
     parent.removeChild(span);
