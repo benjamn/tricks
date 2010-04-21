@@ -171,9 +171,7 @@ IESelection.rangeToLoc = function(range) {
     range.pasteHTML("<span id='" + id + "'></span>");
     var span = document.getElementById(id),
         parent = range.parentElement(),
-        loc = Location.fromLeafPos(span, 0, function(node) {
-            return node === parent;
-        });
+        loc = Location.fromLeafPos(span, 0);
     parent.removeChild(span);
     return loc;
 };
