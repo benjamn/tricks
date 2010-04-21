@@ -73,12 +73,12 @@ function shortenTo(shortName, cls) {
 var NodeOffsetLocation = shortenTo("NOL", Location.derive({
 
     toLeafPos: function() {
-        return { leaf: node, pos: this.offset };
+        return { leaf: this.node, pos: this.offset };
     },
 
     toString: function() {
         return NodeOffsetLocation.shortName + "(" +
-            [xpath.toXPath(node),
+            [xpath.toXPath(this.node),
              this.offset].join(separator) + ")";
     }
 
@@ -335,19 +335,14 @@ function affinity(leaf, pos) {
 }
 
 function skipForward(leaf, pos, limit) {
-    if (!leaf || leaf == limit || !isTxt(leaf) || wsPres(leaf))
+    if (!leaf || leaf == limit)
         return null;
 
-    var current = { leaf: leaf, pos: pos },
-        text = leaf.nodeValue,
-        preText = text.slice(0, pos),
-        postText = text.slice(pos);
-
-    if (/^\S/.test(postText))
-        return current;
-    if (/\S$/.test(preText))
+    var current = { leaf: leaf, pos: pos };
+    if (!needsAdjustment(leaf, pos))
         return current;
 
+    var postText = leaf.nodeValue.slice(pos);
     if (!postText)
         return skipForward(next(leaf), 0, limit) || current;
 
@@ -363,7 +358,23 @@ function len(leaf) {
     return 0;
 }
 
+function needsAdjustment(leaf, pos) {
+    if (!isTxt(leaf) || wsPres(leaf))
+        return false;
+    var text = leaf.nodeValue,
+        preText = text.slice(0, pos),
+        postText = text.slice(pos);
+    if (/^\S/.test(postText) ||
+        /\S$/.test(preText))
+        return false;
+    return true;
+}
+
 function adjustToBoundary(leaf, pos) {
+    var current = { leaf: leaf, pos: pos };
+    if (!needsAdjustment(leaf, pos))
+        return current;
+
     var pl;
     while (!pos && (pl = prev(leaf)))
         pos = len(leaf = pl);
@@ -375,10 +386,7 @@ function adjustToBoundary(leaf, pos) {
     }
 
     var limit = next(last(findAncestor(leaf, isBlock)));
-    return skipForward(leaf, pos, limit) || {
-        leaf: leaf,
-        pos: pos
-    };
+    return skipForward(leaf, pos, limit) || current;
 }
 
 Location.fromLeafPos = function(leaf, pos) {
