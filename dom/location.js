@@ -342,12 +342,11 @@ function skipForward(leaf, pos, limit) {
     if (!needsAdjustment(leaf, pos))
         return current;
 
-    var postText = leaf.nodeValue.slice(pos);
-    if (!postText)
+    if (!isTxt(leaf) || !(postText = leaf.nodeValue.slice(pos)));
         return skipForward(next(leaf), 0, limit) || current;
 
-    pos += /^\s*/.exec(postText)[0].length;
-    return skipForward(leaf, pos, limit) || current;
+    var ldSpcLen = /^\s*/.exec(postText)[0].length;
+    return skipForward(leaf, pos + ldSpcLen, limit) || current;
 }
 
 function len(leaf) {
@@ -359,7 +358,9 @@ function len(leaf) {
 }
 
 function needsAdjustment(leaf, pos) {
-    if (!isTxt(leaf) || wsPres(leaf))
+    if (!isTxt(leaf))
+        return !infertile(leaf);
+    if (wsPres(leaf))
         return false;
     var text = leaf.nodeValue,
         preText = text.slice(0, pos),
