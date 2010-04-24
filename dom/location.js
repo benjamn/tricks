@@ -14,7 +14,7 @@ var Base = require("../lang/class").Base,
     isBlock = dom.isBlockDisplay,
     wsExp = /\s+/gm,
     xpath = require("./xpath"),
-    countOccur = require("../lang/str").countOccurrencesAllowingOverlap,
+    occurs = require("../lang/str").occurrencesAllowingOverlap,
     encode = encodeURIComponent,
     decode = decodeURIComponent,
     NCHARS = 10,
@@ -112,70 +112,78 @@ function iterTextNodes(node, callback, back) {
     }
 }
 
-function startsAt(slug, leaf, pos) {
-    var text = leaf.nodeValue.slice(pos);
-    if (!text || /^\s/.test(text))
-        return false;
-    while (leaf) {
-        text = text.replace(wsExp, "");
-        for (var tlen = text.length,
-                 slen = slug.length,
-                 i = 0; i < tlen && i < slen; ++i)
-            if (text.charAt(i) !=
-                slug.charAt(i))
-                return false;
-        if (i == slen)
-            return true;
-        slug = slug.slice(tlen);
-        do leaf = next(leaf);
-        while (leaf && !isTxt(leaf));
-        text = leaf && leaf.nodeValue;
-    }
-    return false;
-}
+function toRawPos(rawStr,
+                  remExp,
+                  slugPos,
+                  back) // TODO Respect directionality.
+{
+    // TODO Improve algorithm.
+    for (var len = rawStr.length, rawPos = slugPos; rawPos <= len; ++rawPos)
+        if (rawStr.slice(0, rawPos).replace(remExp, "").length >= slugPos)
+            return rawPos;
+};
 
-function endsAt(slug, leaf, pos) {
-    var text = leaf.nodeValue.slice(0, pos);
-    if (!text || /\s$/.test(text))
-        return false;
-    while (leaf) {
-        text = text.replace(wsExp, "");
-        for (var tlen = text.length,
-                 slen = slug.length,
-                 i = 0; i < tlen && i < slen; ++i)
-            if (text.charAt(tlen - i - 1) !=
-                slug.charAt(slen - i - 1))
-                return false;
-        if (i == slen)
-            return true;
-        slug = slug.slice(0, slen - tlen);
-        do leaf = prev(leaf);
-        while (leaf && !isTxt(leaf));
-        text = leaf && leaf.nodeValue;
+function textNodesAndSlugs(node, overflow, back) {
+    var limit = back ? prev(first(node)) : next(last(node)),
+        hitLimit,
+        nodes = [],
+        slugs = [];
+
+    iterTextNodes(node, function(tn) {
+        var tnSlug = tn.nodeValue.replace(wsExp, "");
+        if (tnSlug) {
+            nodes[nodes.length] = tn;
+            slugs[slugs.length] = tnSlug;
+        }
+        if (tn === limit || hitLimit) {
+            hitLimit = true;
+            overflow -= tnSlug.length;
+            return overflow <= 0;
+        }
+    }, back);
+
+    if (back) {
+        // Put the nodes/slugs back in DOM order.  Calling reverse at the
+        // end is cheaper than calling unshift on every iteration.
+        nodes.reverse();
+        slugs.reverse();
     }
-    return false;
+
+    return {
+        nodes: nodes,
+        slugs: slugs,
+        toLeafPos: function(offset) {
+            var i = 0, node, sum = 0, slen;
+            while ((node = nodes[i]))
+                if (sum + (slen = slugs[i].length) < offset) {
+                    sum += slen;
+                    ++i;
+                } else return {
+                    leaf: node,
+                    pos: toRawPos(node.nodeValue, wsExp, offset - sum, back)
+                };
+        }
+    };
 }
 
 var OrdinalSlugLocation = shortenTo("OSL", Location.derive({
 
     toLeafPos: function() {
-        var slug = this.slug,
-            ord = this.ordinal;
+        var ord = this.ordinal,
+            slug = this.slug;
 
-        if (ord < 0)
-            return iterTextNodes(this.node, function(tn) {
-                for (var pos = tn.nodeValue.length; pos >= 0; --pos)
-                    if (endsAt(slug, tn, pos) && ++ord == 0)
-                        return { leaf: tn, pos: pos };
-            }, true);
+        if (ord < 0) {
+            var tnas = textNodesAndSlugs(this.node, slug.length, true),
+                offsets = occurs(tnas.slugs.join(""), slug);
+            return tnas.toLeafPos(offsets.reverse()[-ord-1] +
+                                  slug.length);
+        }
 
-        if (ord > 0)
-            return iterTextNodes(this.node, function(tn) {
-                var text = tn.nodeValue;
-                for (var pos = 0; pos <= text.length; ++pos)
-                    if (startsAt(slug, tn, pos) && --ord == 0)
-                        return { leaf: tn, pos: pos };
-            });
+        if (ord > 0) {
+            var tnas = textNodesAndSlugs(this.node, slug.length),
+                offsets = occurs(tnas.slugs.join(""), slug);
+            return tnas.toLeafPos(offsets[ord-1]);
+        }
 
         return null;
     },
@@ -223,7 +231,7 @@ OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
         preSlug = preSlug.slice(slug.length - NCHARS);
         slug = slug.slice(slug.length - NCHARS);
         // This still works, even though it's searching forward.
-        ordinal -= countOccur(preSlug, slug);
+        ordinal -= occurs(preSlug, slug).length;
     } else {
         iterTextNodes(ancestor, function(tn) {
             var text = tn.nodeValue,
@@ -238,7 +246,7 @@ OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
         });
         preSlug = preSlug.slice(0, preSlug.length - slug.length + NCHARS);
         slug = slug.slice(0, NCHARS);
-        ordinal += countOccur(preSlug, slug);
+        ordinal += occurs(preSlug, slug).length;
     }
 
     return new OrdinalSlugLocation({

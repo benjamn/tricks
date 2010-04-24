@@ -15,10 +15,10 @@ exports.camelize = function(str) {
     return str.replace(camel_pattern, hump);
 };
 
-exports.countOccurrencesAllowingOverlap = function(str, sub) {
+exports.occurrencesAllowingOverlap = function(str, sub) {
     var last = -1,
-        count = 0;
+        occurs = [];
     while ((last = str.indexOf(sub, last + 1)) > -1)
-        count += 1;
-    return count;
+        occurs[occurs.length] = last;
+    return occurs;
 };
