@@ -14,6 +14,7 @@ var Base = require("../lang/class").Base,
     isBlock = dom.isBlockDisplay,
     wsExp = /\s+/gm,
     xpath = require("./xpath"),
+    countOccur = require("../lang/str").countOccurrencesAllowingOverlap,
     encode = encodeURIComponent,
     decode = decodeURIComponent,
     NCHARS = 10,
@@ -202,57 +203,42 @@ OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
         return null;
     
     var ancestor = findAncestor(leaf, isBlock),
+        hitLeaf,
+        preSlug = "",
         slug = "",
         ordinal = 0;
 
     if (affinity(leaf, pos) < 0) {
-        // Collect the NCHARS or more non-space characters ending at
-        // leaf/pos.
-        iterTextNodes(leaf, function(tn) {
-            slug = (tn === leaf ? tn.nodeValue.slice(0, pos)
-                                : tn.nodeValue
-                   ).replace(wsExp, "") + slug;
+        iterTextNodes(ancestor, function(tn) {
+            var text = tn.nodeValue,
+                shrunk = text.replace(wsExp, "");
+            preSlug = shrunk + preSlug;
+            if (tn === leaf) {
+                hitLeaf = true;
+                slug = text.slice(0, pos).replace(wsExp, "") + slug;
+            } else if (hitLeaf)
+                slug = shrunk + slug;
             return slug.length >= NCHARS;
         }, true);
-
-        // Trim slug length to just NCHARS.
-        slug = slug.slice(slug.length - NCHARS,
-                          slug.length);
-
-        // Decrement ordinal by the number of occurrences of this slug up
-        // to and including the one ending at leaf/pos.
-        iterTextNodes(ancestor, function(tn) {
-            for (var i = tn.nodeValue.length; i >= 0; --i) {
-                if (endsAt(slug, tn, i))
-                    ordinal--;
-                if (tn === leaf && i <= pos)
-                    return true;
-            }
-        }, true);
+        preSlug = preSlug.slice(slug.length - NCHARS);
+        slug = slug.slice(slug.length - NCHARS);
+        // This still works, even though it's searching forward.
+        ordinal -= countOccur(preSlug, slug);
     } else {
-        // Collect the NCHARS or more non-space characters starting at
-        // leaf/pos.
-        iterTextNodes(leaf, function(tn) {
-            slug = slug + (tn === leaf ? tn.nodeValue.slice(pos)
-                                       : tn.nodeValue
-                          ).replace(wsExp, "");
+        iterTextNodes(ancestor, function(tn) {
+            var text = tn.nodeValue,
+                shrunk = text.replace(wsExp, "");
+            preSlug = preSlug + shrunk;
+            if (tn === leaf) {
+                hitLeaf = true;
+                slug = slug + text.slice(pos).replace(wsExp, "");
+            } else if (hitLeaf)
+                slug = slug + shrunk;
             return slug.length >= NCHARS;
         });
-
-        // Trim slug length to just NCHARS.
+        preSlug = preSlug.slice(0, preSlug.length - slug.length + NCHARS);
         slug = slug.slice(0, NCHARS);
-
-        // Increment ordinal by the number of occurrences of this slug up
-        // to and including the one starting at leaf/pos.
-        iterTextNodes(ancestor, function(tn) {
-            var text = tn.nodeValue;
-            for (var i = 0; i <= text.length; ++i) {
-                if (startsAt(slug, tn, i))
-                    ordinal++;
-                if (tn === leaf && i >= pos)
-                    return true;
-            }
-        });
+        ordinal += countOccur(preSlug, slug);
     }
 
     return new OrdinalSlugLocation({
