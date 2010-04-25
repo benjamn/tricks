@@ -118,9 +118,18 @@ function toRawPos(rawStr,
                   back) // TODO Respect directionality.
 {
     // TODO Improve algorithm.
-    for (var len = rawStr.length, rawPos = slugPos; rawPos <= len; ++rawPos)
-        if (rawStr.slice(0, rawPos).replace(remExp, "").length >= slugPos)
+    for (var len = rawStr.length,
+             rawPos = slugPos;
+         rawPos < len;
+         ++rawPos)
+    {
+        var preSlugLen = rawStr.slice(0, rawPos).replace(remExp, "").length;
+        if (back && preSlugLen >= slugPos)
             return rawPos;
+        else if (preSlugLen > slugPos)
+            return rawPos - 1;
+    }
+    return rawPos;
 };
 
 function textNodesAndSlugs(node, overflow, back) {
@@ -154,14 +163,17 @@ function textNodesAndSlugs(node, overflow, back) {
         slugs: slugs,
         toLeafPos: function(offset) {
             var i = 0, node, sum = 0, slen;
-            while ((node = nodes[i]))
-                if (sum + (slen = slugs[i].length) < offset) {
+            while ((node = nodes[i])) {
+                slen = slugs[i].length;
+                if (back ? sum + slen <  offset
+                         : sum + slen <= offset) {
                     sum += slen;
                     ++i;
                 } else return {
                     leaf: node,
                     pos: toRawPos(node.nodeValue, wsExp, offset - sum, back)
                 };
+            }
         }
     };
 }
