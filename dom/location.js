@@ -218,6 +218,26 @@ OrdinalSlugLocation.fromString = function(s) {
     });
 };
 
+function affinity(leaf, pos) {
+    var text = leaf.nodeValue,
+        preText = text.slice(0, pos),
+        postText = text.slice(pos);
+
+    if (/^\S/.test(postText))
+        return 1;
+    
+    if (/\S$/.test(preText))
+        return -1;
+
+    if (preText && !/\S/.test(preText))
+        return 1;
+
+    if (postText && !/\S/.test(postText))
+        return -1;
+
+    return 1;
+}
+
 OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || wsPres(leaf))
         return null;
@@ -319,26 +339,6 @@ Location.fromString = function(s) {
     return (match.length == 3 &&
             shortNames[match[1]].fromString(match[2]));
 };
-
-function affinity(leaf, pos) {
-    var text = leaf.nodeValue,
-        preText = text.slice(0, pos),
-        postText = text.slice(pos);
-
-    if (/^\S/.test(postText))
-        return 1;
-    
-    if (/\S$/.test(preText))
-        return -1;
-
-    if (preText && !/\S/.test(preText))
-        return 1;
-
-    if (postText && !/\S/.test(postText))
-        return -1;
-
-    return 1;
-}
 
 Location.fromLeafPos = function(leaf, pos) {
     // Firefox (and IE?) will sometimes give a range endpoint whose node
