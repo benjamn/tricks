@@ -120,7 +120,7 @@ function toRawPos(rawStr,
     // TODO Improve algorithm.
     for (var len = rawStr.length,
              rawPos = slugPos;
-         rawPos < len;
+         rawPos <= len;
          ++rawPos)
     {
         var preSlugLen = rawStr.slice(0, rawPos).replace(remExp, "").length;
@@ -340,75 +340,14 @@ function affinity(leaf, pos) {
     return 1;
 }
 
-function skipForward(leaf, pos, limit) {
-    if (!leaf || leaf == limit)
-        return null;
-
-    var current = { leaf: leaf, pos: pos };
-    if (!needsAdjustment(leaf, pos))
-        return current;
-
-    if (!isTxt(leaf) || !(postText = leaf.nodeValue.slice(pos)));
-        return skipForward(next(leaf), 0, limit) || current;
-
-    var ldSpcLen = /^\s*/.exec(postText)[0].length;
-    return skipForward(leaf, pos + ldSpcLen, limit) || current;
-}
-
-function len(leaf) {
-    if (isTxt(leaf))
-        return leaf.nodeValue.length;
-    if (infertile(leaf))
-        return 1;
-    return 0;
-}
-
-function needsAdjustment(leaf, pos) {
-    if (!isTxt(leaf))
-        return !infertile(leaf);
-    if (wsPres(leaf))
-        return false;
-    var text = leaf.nodeValue,
-        preText = text.slice(0, pos),
-        postText = text.slice(pos);
-    if (/^\S/.test(postText) ||
-        /\S$/.test(preText))
-        return false;
-    return true;
-}
-
-function adjustToBoundary(leaf, pos) {
-    var current = { leaf: leaf, pos: pos };
-    if (!needsAdjustment(leaf, pos))
-        return current;
-
-    var pl;
-    while (!pos && (pl = prev(leaf)))
-        pos = len(leaf = pl);
-
-    var sp = shadowPtEnd(leaf);
-    if (order(leaf, pos, sp.leaf, sp.pos) < 0) {
-        leaf = sp.leaf;
-        pos = sp.pos;
-    }
-
-    var limit = next(last(findAncestor(leaf, isBlock)));
-    return skipForward(leaf, pos, limit) || current;
-}
-
 Location.fromLeafPos = function(leaf, pos) {
-    // Internet Explorer will sometimes give a range endpoint whose node
+    // Firefox (and IE?) will sometimes give a range endpoint whose node
     // is not a leaf, and whose offset is an index into the childNodes
     // array.  Cope with that before proceeding.
     while (leaf.firstChild) {
         leaf = leaf.childNodes[pos];
         pos = 0;
     }
-
-    var adjusted = adjustToBoundary(leaf, pos);
-    leaf = adjusted.leaf;
-    pos = adjusted.pos;
-
     return (NodeOffsetLocation.fromLeafPos(leaf, pos) ||
             OrdinalSlugLocation.fromLeafPos(leaf, pos) ||
             PreOffsetLocation.fromLeafPos(leaf, pos));
