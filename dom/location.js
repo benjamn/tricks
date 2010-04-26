@@ -10,7 +10,6 @@ var Base = require("../lang/class").Base,
     getStyle = dom.getStyle,
     wsPres = dom.whiteSpacePreserved,
     findAncestor = dom.findAncestor,
-    shadowPtEnd = dom.shadowPointFromEnd,
     isBlock = dom.isBlockDisplay,
     wsExp = /\s+/gm,
     xpath = require("./xpath"),
@@ -113,24 +112,35 @@ function iterTextNodes(node, callback, back) {
 }
 
 function toRawPos(rawStr,
-                  remExp,
                   slugPos,
-                  back) // TODO Respect directionality.
+                  back)
 {
-    // TODO Improve algorithm.
-    for (var len = rawStr.length,
-             rawPos = slugPos;
-         rawPos <= len;
-         ++rawPos)
-    {
-        var preSlugLen = rawStr.slice(0, rawPos).replace(remExp, "").length;
-        if (back && preSlugLen >= slugPos)
-            return rawPos;
-        else if (preSlugLen > slugPos)
-            return rawPos - 1;
-    }
+    var notWsExp = /\S+/gm,
+        sum = 0,
+        match,
+        rawPos = 0;
+
+    notWsExp.lastIndex = 0; // XXX Why?
+
+    if (back)
+        while (sum < slugPos &&
+               (match = notWsExp.exec(rawStr)))
+        {
+            rawPos = match.index + slugPos - sum;
+            sum += match[0].length;
+        }
+    else
+        while ((match = notWsExp.exec(rawStr))) {
+            rawPos = match.index + slugPos - sum;
+            if (sum == slugPos)
+                break;
+            sum += match[0].length;
+            if (sum > slugPos)
+                break;
+        }
+
     return rawPos;
-};
+}
 
 function textNodesAndSlugs(node, overflow, back) {
     var limit = back ? prev(first(node)) : next(last(node)),
@@ -171,7 +181,7 @@ function textNodesAndSlugs(node, overflow, back) {
                     ++i;
                 } else return {
                     leaf: node,
-                    pos: toRawPos(node.nodeValue, wsExp, offset - sum, back)
+                    pos: toRawPos(node.nodeValue, offset - sum, back)
                 };
             }
         }
