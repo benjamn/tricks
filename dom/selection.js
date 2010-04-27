@@ -170,10 +170,10 @@ IESelection.rangeToLoc = function(range) {
     var id = 'ierange' + Math.random();
     range.pasteHTML("<span id='" + id + "'></span>");
     var span = document.getElementById(id),
-        parent = range.parentElement(),
-        loc = Location.fromLeafPos(span, 0);
+        leaf = nextLeaf(span),
+        parent = range.parentElement();
     parent.removeChild(span);
-    return loc;
+    return Location.fromLeafPos(leaf, 0);
 };
 
 IESelection.getCurrent = function() {

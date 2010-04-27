@@ -236,7 +236,7 @@ function len(leaf) {
 
 function affinity(leaf, pos) {
     var pl;
-    while (!pos && (pl = prev(leaf)))
+    while (!pos && isTxt(pl = prev(leaf)))
         pos = len(leaf = pl);
 
     var text = leaf.nodeValue,
@@ -261,7 +261,7 @@ function affinity(leaf, pos) {
 OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
     if (!isTxt(leaf) || wsPres(leaf))
         return null;
-    
+
     var ancestor = findAncestor(leaf, isBlock),
         hitLeaf,
         preSlug = "",
