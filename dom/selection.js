@@ -88,7 +88,6 @@ var allSelections = new Set,
     },
 
     deselect: function() {},
-    reselect: function() {},
 
     toString: function() {
         return "SEL(" + [this.opening,
@@ -134,17 +133,6 @@ var W3CSelection = Selection.derive({
         var sel = window.getSelection();
         if (sel)
             sel.removeAllRanges();
-        return sel;
-    },
-    reselect: function() {
-        var sel = this.deselect(),
-            range = document.createRange(),
-            closing = this.closing.cut()[1],
-            opening = this.opening.cut()[1];
-        range.setStart(opening, 0);
-        range.setEnd(closing, 0);
-        if (sel)
-            sel.addRange(range);
     }
 });
 
@@ -159,8 +147,8 @@ W3CSelection.getCurrent = function() {
 };
 
 var IESelection = Selection.derive({
-    reselect: function() {
-        alert("Selection not yet implemented in IE.");
+    deselect: function() {
+        document.selection.empty();
     }
 });
 
