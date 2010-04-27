@@ -160,7 +160,11 @@ exports.compareNodes = function(pred, succ) {
 var infertile_pattern =
     /^(script|area|base|basefont|br|col|frame|hr|img|input|isindex|link|meta|param)$/i,
     infertile = exports.infertile = function(node) {
-        return !!(node && infertile_pattern.test(node.nodeName));
+        if (!node)
+            throw node;
+        if (node.nodeType != exports.ELEMENT_NODE)
+            return true;
+        return infertile_pattern.test(node.nodeName);
     };
     
 exports.canParent = function(parent, child) {
