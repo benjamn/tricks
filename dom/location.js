@@ -280,8 +280,9 @@ OrdinalSlugLocation.fromLeafPos = function(leaf, pos) {
                 slug = shrunk + slug;
             return slug.length >= NCHARS;
         }, true);
-        preSlug = preSlug.slice(slug.length - NCHARS);
-        slug = slug.slice(slug.length - NCHARS);
+        var at = Math.max(slug.length - NCHARS, 0);
+        preSlug = preSlug.slice(at);
+        slug = slug.slice(at);
         // This still works, even though it's searching forward.
         ordinal -= occurs(preSlug, slug).length;
     } else {
