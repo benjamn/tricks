@@ -228,7 +228,17 @@ OrdinalSlugLocation.fromString = function(s) {
     });
 };
 
+function len(leaf) {
+    if (!isTxt(leaf))
+        return infertile(leaf) ? 1 : 0;
+    return leaf.nodeValue.length;
+}
+
 function affinity(leaf, pos) {
+    var pl;
+    while (!pos && (pl = prev(leaf)))
+        pos = len(leaf = pl);
+
     var text = leaf.nodeValue,
         preText = text.slice(0, pos),
         postText = text.slice(pos);
