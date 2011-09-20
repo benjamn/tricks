@@ -50,3 +50,27 @@ exports.wrap = function(fn, wrapper) {
         return apply.call(fn, this, args);
     };
 };
+
+var swapNames = {};
+
+// Returns a function whose implementation can be swapped out at a later time.
+exports.swap = function(name, fn) {
+    if (swapNames.hasOwnProperty(name))
+        return swapNames[name].swap(fn);
+    
+    function wrapper() {
+        return fn.apply(this, arguments);
+    };
+
+    wrapper.swap = function(newFn) {
+        fn = newFn;
+        wrapper.prototype = fn.prototype;
+        return wrapper;
+    };
+
+    wrapper.toString = function() {
+        return fn.toString();
+    };
+
+    return swapNames[name] = wrapper;
+};
